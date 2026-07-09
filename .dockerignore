@@ -1,0 +1,9 @@
+bridge/target
+backend/.venv
+backend/**/__pycache__
+backend/.pytest_cache
+frontend/node_modules
+frontend/dist
+data
+.git
+.claude

@@ -1,0 +1,27 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      # Point this at your real library/downloads folders. Everything you
+      # want to scan (and hardlink between) must live under here.
+      - ./data:/data
+      - backend_db:/db
+      - bridge_cache:/cache
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      BACKEND_URL: http://backend:8000
+    depends_on:
+      - backend
+
+volumes:
+  backend_db:
+  bridge_cache:
