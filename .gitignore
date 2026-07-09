@@ -1,0 +1,10 @@
+# Local Claude Code session settings - personal, not shared with the repo.
+.claude/settings.local.json
+
+bridge/target/**
+backend/.venv/**
+backend/**/__pycache__/**
+backend/.pytest_cache/**
+frontend/node_modules/**
+frontend/dist/**
+data/**

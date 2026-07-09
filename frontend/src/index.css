@@ -1,0 +1,750 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f4f5f8;
+  --surface: #ffffff;
+  --surface-alt: #f7f7fb;
+  --fg: #1c1e26;
+  --muted: #6b7080;
+  --border: #e4e5ec;
+  --accent: #4f46e5;
+  --accent-soft: #eef0fd;
+  --accent-fg: #ffffff;
+  --danger: #dc2626;
+  --danger-soft: #fdecec;
+  --ok: #16a34a;
+  --suggest: #b45309;
+  --suggest-soft: #fef3e2;
+  --radius: 8px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 3px rgba(16, 24, 40, 0.06);
+  font-family: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1013;
+    --surface: #18191d;
+    --surface-alt: #202126;
+    --fg: #eef0f3;
+    --muted: #8b909b;
+    --border: #2b2d33;
+    --accent: #818cf8;
+    --accent-soft: #262a45;
+    --accent-fg: #0b0c10;
+    --danger-soft: #3a1f22;
+    --suggest: #fbbf24;
+    --suggest-soft: #3a2f0f;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+h2,
+h3,
+h4 {
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+h2 {
+  font-size: 1.15rem;
+}
+
+h3 {
+  font-size: 0.95rem;
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--fg);
+  border-radius: 6px;
+  padding: 0.32rem 0.7rem;
+  font-size: 0.8rem;
+  transition: background 0.15s ease, border-color 0.15s ease, filter 0.15s ease;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+
+button.primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+button.danger {
+  color: var(--danger);
+  border-color: var(--danger-soft);
+}
+
+button.danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+
+/* --- app shell --- */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  padding: 0.5rem 0.85rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.nav a {
+  color: var(--muted);
+  text-decoration: none;
+  padding: 0.4rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.nav a:hover {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.nav a.active {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.content {
+  flex: 1;
+  padding: 0.85rem;
+  max-width: 1300px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.badge {
+  display: inline-block;
+  min-width: 1.2em;
+  padding: 0 0.35em;
+  margin-left: 0.4em;
+  background: var(--danger);
+  color: white;
+  border-radius: 999px;
+  font-size: 0.7em;
+  text-align: center;
+  vertical-align: middle;
+}
+
+/* --- shared panel look --- */
+
+.folder-panel,
+.scan-controls,
+.results-list,
+.report {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.7rem 0.85rem;
+  margin-bottom: 0.7rem;
+}
+
+/* --- folder panel (global, shared across every tab) --- */
+
+.folder-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+
+.folder-panel-header h3 {
+  margin: 0;
+}
+
+.folder-panel-empty {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.folder-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.83rem;
+}
+
+.folder-table th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.25rem 0.45rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.folder-table td {
+  padding: 0.3rem 0.45rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.folder-table tr:last-child td {
+  border-bottom: none;
+}
+
+.folder-path {
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+  word-break: break-all;
+}
+
+/* --- scan controls / options --- */
+
+.scan-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.option input {
+  width: 4rem;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.error {
+  color: var(--danger);
+}
+
+.error-boundary {
+  max-width: 480px;
+  margin: 3rem auto;
+  text-align: center;
+  padding: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.error-boundary p {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0.5rem 0 1rem;
+}
+
+/* --- progress --- */
+
+.progress {
+  margin: 0.7rem 0;
+}
+
+.progress-track {
+  background: var(--border);
+  border-radius: 999px;
+  height: 6px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  background: var(--accent);
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.progress-label {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* --- results: two-column layout (single table + sticky preview) --- */
+
+.results-layout {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.results-list {
+  min-width: 0;
+}
+
+/* Many columns (up to 10 for similar-videos) don't all fit comfortably at
+   once - columns are user-resizable (drag the handle on a header's right
+   edge) so name/path can be shrunk to make room, and the table falls back
+   to horizontal scroll if it still needs more room than the panel has.
+   Alignment across groups still holds: it's one <table>, so column widths
+   are computed once for every row. */
+.table-scroll {
+  overflow-x: auto;
+}
+
+.group-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.group-table th {
+  position: relative;
+  text-align: left;
+  background: var(--surface-alt);
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.col-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+}
+
+.col-resize-handle:hover,
+.col-resize-handle:active {
+  background: var(--accent);
+  opacity: 0.5;
+}
+
+.group-table td {
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-table tr:last-child td {
+  border-bottom: none;
+}
+
+.group-table tbody tr:not(.group-separator) {
+  cursor: pointer;
+}
+
+.group-table tbody tr:not(.group-separator):hover {
+  background: var(--bg);
+}
+
+.group-table tbody tr.selected {
+  background: var(--accent-soft);
+}
+
+.group-separator td {
+  background: var(--surface-alt);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.25rem 0.5rem;
+}
+
+/* Column widths themselves are set inline from React state (drag-resize) -
+   these rules are just per-column visual styling. */
+.col-name {
+  font-weight: 500;
+}
+
+.col-path {
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+  font-size: 0.76rem;
+}
+
+.col-resolution,
+.col-bitrate,
+.col-codec,
+.col-duration,
+.col-fps,
+.col-difference {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pinned to the right edge of the scroll area so it's always reachable
+   without swiping all the way across a wide table - matters most on a
+   narrow phone screen with many columns. */
+.col-actions {
+  white-space: nowrap;
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  box-shadow: -2px 0 4px rgba(16, 24, 40, 0.08);
+}
+
+th.col-actions {
+  background: var(--surface-alt);
+}
+
+td.col-actions {
+  background: var(--surface);
+}
+
+.group-table tbody tr:not(.group-separator):hover td.col-actions {
+  background: var(--bg);
+}
+
+.group-table tbody tr.selected td.col-actions {
+  background: var(--accent-soft);
+}
+
+.icon-button {
+  padding: 0.2rem 0.4rem;
+  line-height: 1;
+  font-size: 0.85rem;
+}
+
+.ref-badge {
+  display: inline-block;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 0.62rem;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 0.05rem 0.32rem;
+  margin-right: 0.35rem;
+  letter-spacing: 0.03em;
+}
+
+/* Mild, best-effort hint (technical metadata only, not a verdict) about
+ * which file in a group is probably worth keeping. */
+.best-badge {
+  display: inline-block;
+  background: var(--suggest-soft);
+  color: var(--suggest);
+  font-size: 0.68rem;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 0.05rem 0.22rem;
+  margin-right: 0.3rem;
+  cursor: help;
+}
+
+.queued-note {
+  color: var(--ok);
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+.unqueue-button {
+  padding: 0.1rem 0.4rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* --- preview panel (sticky, right column) --- */
+
+.preview-panel {
+  position: sticky;
+  top: 3.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.6rem;
+}
+
+.preview-panel-empty {
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: center;
+  padding: 1.5rem 0.6rem;
+}
+
+.preview-media {
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #0002;
+  display: block;
+}
+
+.preview-generic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100px;
+  border: 1px dashed var(--border);
+  word-break: break-all;
+  padding: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.preview-path {
+  font-family: ui-monospace, monospace;
+  font-size: 0.68rem;
+  color: var(--muted);
+  word-break: break-all;
+  margin: 0.4rem 0 0.15rem;
+}
+
+.preview-hint {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* --- preview overlay (double click) --- */
+
+.preview-overlay {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 1rem;
+  max-width: min(90vw, 1000px);
+  max-height: 90vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.preview-overlay-media {
+  max-width: 100%;
+  max-height: 75vh;
+  border-radius: 6px;
+}
+
+/* --- bad extensions (flat, read-only table) --- */
+
+.bad-extensions-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.bad-extensions-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.4rem 0.5rem;
+  word-break: break-all;
+}
+
+.bad-extensions-table tr:last-child td {
+  border-bottom: none;
+}
+
+.bad-extensions-table tr:hover {
+  background: var(--bg);
+}
+
+/* --- pending queue page --- */
+
+.category-tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.7rem;
+}
+
+.category-tabs .active {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+}
+
+.operation-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.7rem;
+}
+
+.operation-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+  padding: 0.4rem 0.15rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+
+.operation-list li:last-child {
+  border-bottom: none;
+}
+
+.op-type {
+  font-weight: 600;
+  min-width: 4.5rem;
+}
+
+.op-src,
+.op-dst {
+  word-break: break-all;
+  font-family: ui-monospace, monospace;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.report ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.report li {
+  padding: 0.25rem 0;
+  font-size: 0.82rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.report li:last-child {
+  border-bottom: none;
+}
+
+.report li.error {
+  color: var(--danger);
+}
+
+.report li.ok {
+  color: var(--ok);
+}
+
+/* --- folder browser modal (also reused by the preview overlay backdrop) --- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 16, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 20;
+}
+
+.modal {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 1.1rem;
+  max-width: 480px;
+  width: 100%;
+  max-height: 78vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow);
+}
+
+.current-path {
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.item-count {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: 0.2rem 0 0.5rem;
+}
+
+.folder-list {
+  list-style: none;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.link-button {
+  border: none;
+  background: none;
+  padding: 0.3rem 0;
+  width: 100%;
+  text-align: left;
+  border-radius: 0;
+  font-size: 0.85rem;
+}
+
+.link-button:hover {
+  color: var(--accent);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+@media (max-width: 720px) {
+  .results-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .preview-panel {
+    position: static;
+  }
+}
