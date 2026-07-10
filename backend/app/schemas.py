@@ -70,3 +70,12 @@ class BrowseEntry(BaseModel):
 class ToolSettingsOut(BaseModel):
     tool: str
     options: dict
+
+
+class FolderSelectionEntry(BaseModel):
+    path: str
+    is_reference: bool
+
+
+class FolderSelectionOut(BaseModel):
+    folders: list[FolderSelectionEntry]

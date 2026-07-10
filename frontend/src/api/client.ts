@@ -1,4 +1,4 @@
-import type { BrowseEntry, OperationCreate, OperationOut, ScanCreate, ScanOut, Tool, ToolSettingsOut } from "./types";
+import type { BrowseEntry, FolderSelectionEntry, OperationCreate, OperationOut, ScanCreate, ScanOut, Tool, ToolSettingsOut } from "./types";
 
 const BASE = "/api";
 
@@ -26,6 +26,9 @@ export const api = {
   stopScan: (id: number) => request<ScanOut>(`/scans/${id}/stop`, { method: "POST" }),
 
   getToolSettings: (tool: Tool) => request<ToolSettingsOut>(`/settings/${tool}`),
+
+  getFolders: () => request<{ folders: FolderSelectionEntry[] }>("/folders"),
+  saveFolders: (folders: FolderSelectionEntry[]) => request<{ folders: FolderSelectionEntry[] }>("/folders", { method: "PUT", body: JSON.stringify({ folders }) }),
 
   operationCounts: () => request<{ counts: Record<string, number> }>("/operations/counts"),
   listOperations: (category: string) => request<OperationOut[]>(`/operations?category=${encodeURIComponent(category)}`),

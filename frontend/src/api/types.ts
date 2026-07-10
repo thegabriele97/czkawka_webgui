@@ -12,6 +12,12 @@ export interface FolderEntry {
   isReference: boolean;
 }
 
+/** Wire format for FolderEntry - snake_case to match the backend schema. */
+export interface FolderSelectionEntry {
+  path: string;
+  is_reference: boolean;
+}
+
 export interface BrowseEntry {
   name: string;
   path: string;
