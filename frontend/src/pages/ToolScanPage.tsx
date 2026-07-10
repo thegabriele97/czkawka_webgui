@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
+import { buildNavItems } from "../api/navItems";
 import { normalizeGroups } from "../api/normalizeGroups";
 import type { FileEntryLike, FolderEntry, HashAlg, HashSize, ResizeAlgorithm, ScanOut, Tool } from "../api/types";
 import { PreviewOverlay } from "../components/PreviewOverlay";
@@ -46,6 +47,10 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<FileEntryLike | null>(null);
   const [opened, setOpened] = useState<FileEntryLike | null>(null);
+  // Index into the flattened (groups + gap markers) nav sequence - kept in
+  // sync with `selected` so arrow-key navigation continues from wherever a
+  // mouse click landed, and vice versa. null = nothing selected yet.
+  const [navIndex, setNavIndex] = useState<number | null>(null);
 
   const directories = folders.filter((f) => !f.isReference).map((f) => f.path);
   const referenceDirectories = config.supportsReference ? folders.filter((f) => f.isReference).map((f) => f.path) : [];
@@ -94,6 +99,7 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
     setError(null);
     setStarting(true);
     setSelected(null);
+    setNavIndex(null);
     try {
       const created = await api.createScan({
         tool: config.tool,
@@ -133,6 +139,45 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
   // read from the scan itself (as the backend recorded it at the time),
   // not from the folder panel's live state, which may have moved on.
   const groups = scan?.status === "done" ? normalizeGroups(scan.result, scan.reference_directories.length > 0) : [];
+
+  function selectRow(entry: FileEntryLike) {
+    setSelected(entry);
+    const items = buildNavItems(groups);
+    const index = items.findIndex((item) => item.kind === "entry" && item.entry.path === entry.path);
+    setNavIndex(index === -1 ? null : index);
+  }
+
+  function clearSelection() {
+    setSelected(null);
+    setNavIndex(null);
+  }
+
+  function moveSelection(delta: number) {
+    const items = buildNavItems(groups);
+    if (items.length === 0) return;
+    const next = navIndex === null ? (delta > 0 ? 0 : items.length - 1) : Math.min(items.length - 1, Math.max(0, navIndex + delta));
+    setNavIndex(next);
+    const item = items[next];
+    setSelected(item.kind === "entry" ? item.entry : null);
+  }
+
+  // Arrow-key navigation between rows (and the gap between groups, which
+  // briefly clears the preview) - only while there's something to navigate,
+  // and not while the user is typing into a form control elsewhere on the
+  // page (e.g. the scan options).
+  useEffect(() => {
+    if (groups.length === 0) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      const target = e.target as HTMLElement | null;
+      if (target && ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName)) return;
+      e.preventDefault();
+      moveSelection(e.key === "ArrowDown" ? 1 : -1);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups, navIndex]);
 
   return (
     <div className="page">
@@ -228,8 +273,8 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
       {scan?.status === "stopped" && <p className="hint">Scan stopped.</p>}
 
       {scan?.status === "done" && (
-        <section className="results-layout" onClick={() => setSelected(null)}>
-          <div className="results-list">
+        <section className="results-layout" onClick={clearSelection}>
+          <div className={selected ? "results-list has-preview" : "results-list"}>
             <h3>Results ({groups.length} groups)</h3>
             {groups.length === 0 && <p>No results.</p>}
             {groups.length > 0 && (
@@ -238,7 +283,7 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
                 groups={groups}
                 extraColumns={config.extraColumns}
                 selectedPath={selected?.path ?? null}
-                onSelect={setSelected}
+                onSelect={selectRow}
                 onOpen={setOpened}
                 onQueued={onOperationsQueued}
               />

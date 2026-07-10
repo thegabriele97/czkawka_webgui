@@ -147,6 +147,7 @@ interface RowProps {
   selected: boolean;
   queued: QueuedInfo | undefined;
   dataRoot: string;
+  rowRef: (el: HTMLTableRowElement | null) => void;
   onSelect: () => void;
   onOpen: () => void;
   onQueueDelete: () => void;
@@ -164,6 +165,7 @@ function Row({
   selected,
   queued,
   dataRoot,
+  rowRef,
   onSelect,
   onOpen,
   onQueueDelete,
@@ -172,6 +174,7 @@ function Row({
 }: RowProps) {
   return (
     <tr
+      ref={rowRef}
       className={selected ? "selected" : ""}
       onClick={(e) => {
         e.stopPropagation();
@@ -255,7 +258,16 @@ export function ResultsTable({ category, groups, extraColumns, selectedPath, onS
   const [widths, setWidths] = useState<Record<ColumnKey, number>>(DEFAULT_WIDTHS);
   const containerRef = useRef<HTMLDivElement>(null);
   const manuallyResized = useRef<Set<ColumnKey>>(new Set());
+  const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
   const dataRoot = useDataRoot();
+
+  // Keeps the selected row in view as it changes - most useful for arrow-key
+  // navigation, which can move the selection somewhere currently scrolled
+  // off-screen without this.
+  useEffect(() => {
+    if (!selectedPath) return;
+    rowRefs.current.get(selectedPath)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [selectedPath]);
 
   useEffect(() => {
     let cancelled = false;
@@ -391,6 +403,10 @@ export function ResultsTable({ category, groups, extraColumns, selectedPath, onS
                     selected={selectedPath === group.reference.path}
                     queued={undefined}
                     dataRoot={dataRoot}
+                    rowRef={(el) => {
+                      if (el) rowRefs.current.set(group.reference!.path, el);
+                      else rowRefs.current.delete(group.reference!.path);
+                    }}
                     onSelect={() => onSelect(group.reference!)}
                     onOpen={() => onOpen(group.reference!)}
                     onQueueDelete={() => undefined}
@@ -410,6 +426,10 @@ export function ResultsTable({ category, groups, extraColumns, selectedPath, onS
                     selected={selectedPath === entry.path}
                     queued={queuedByPath[entry.path]}
                     dataRoot={dataRoot}
+                    rowRef={(el) => {
+                      if (el) rowRefs.current.set(entry.path, el);
+                      else rowRefs.current.delete(entry.path);
+                    }}
                     onSelect={() => onSelect(entry)}
                     onOpen={() => onOpen(entry)}
                     onQueueDelete={() => queueDelete(entry)}
