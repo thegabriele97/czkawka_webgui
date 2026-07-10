@@ -42,12 +42,13 @@ export interface ToolSettingsOut {
   options: Record<string, unknown>;
 }
 
-export type ScanStatus = "pending" | "running" | "done" | "error";
+export type ScanStatus = "pending" | "running" | "done" | "error" | "stopped";
 
 export interface ScanOut {
   id: number;
   tool: string;
   status: ScanStatus;
+  reference_directories: string[];
   progress_label: string | null;
   progress_all: number | null;
   result: unknown;

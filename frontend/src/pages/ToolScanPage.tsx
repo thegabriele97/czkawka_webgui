@@ -42,18 +42,26 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
   const [vidHashDuration, setVidHashDuration] = useState(10);
   const [scan, setScan] = useState<ScanOut | null>(null);
   const [starting, setStarting] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<FileEntryLike | null>(null);
   const [opened, setOpened] = useState<FileEntryLike | null>(null);
-  // Whether the *currently displayed* scan was run with a reference folder -
-  // frozen at scan-start time. Folders (and their reference tick) can keep
-  // changing live while old results are still on screen, and scan.result's
-  // shape depends on what reference mode was used *when that scan ran*, not
-  // on whatever the folder panel happens to show right now.
-  const [scanUsedReference, setScanUsedReference] = useState(false);
 
   const directories = folders.filter((f) => !f.isReference).map((f) => f.path);
   const referenceDirectories = config.supportsReference ? folders.filter((f) => f.isReference).map((f) => f.path) : [];
+
+  // Reattach to whatever scan was last run for this tool - the backend
+  // keeps a scan going in the background regardless of whether anyone's
+  // watching, so a page reload shouldn't make it look like nothing is
+  // happening (or lose already-computed results).
+  useEffect(() => {
+    api
+      .getLatestScan(config.tool)
+      .then((latest) => {
+        if (latest) setScan(latest);
+      })
+      .catch(() => undefined);
+  }, [config.tool]);
 
   useEffect(() => {
     if (!scan || scan.status !== "running") return;
@@ -86,7 +94,6 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
     setError(null);
     setStarting(true);
     setSelected(null);
-    setScanUsedReference(referenceDirectories.length > 0);
     try {
       const created = await api.createScan({
         tool: config.tool,
@@ -110,7 +117,22 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
     }
   }
 
-  const groups = scan?.status === "done" ? normalizeGroups(scan.result, scanUsedReference) : [];
+  async function stopScan() {
+    if (!scan) return;
+    setStopping(true);
+    try {
+      setScan(await api.stopScan(scan.id));
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setStopping(false);
+    }
+  }
+
+  // Whether the *currently displayed* scan was run with a reference folder -
+  // read from the scan itself (as the backend recorded it at the time),
+  // not from the folder panel's live state, which may have moved on.
+  const groups = scan?.status === "done" ? normalizeGroups(scan.result, scan.reference_directories.length > 0) : [];
 
   return (
     <div className="page">
@@ -194,8 +216,16 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
       </section>
 
       {error && <p className="error">{error}</p>}
-      {scan?.status === "running" && <ProgressBar label={scan.progress_label} percent={scan.progress_all} />}
+      {scan?.status === "running" && (
+        <div className="scan-progress">
+          <ProgressBar label={scan.progress_label} percent={scan.progress_all} />
+          <button onClick={stopScan} disabled={stopping}>
+            Stop scan
+          </button>
+        </div>
+      )}
       {scan?.status === "error" && <p className="error">Error: {scan.error_message}</p>}
+      {scan?.status === "stopped" && <p className="hint">Scan stopped.</p>}
 
       {scan?.status === "done" && (
         <section className="results-layout" onClick={() => setSelected(null)}>
