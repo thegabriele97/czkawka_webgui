@@ -23,18 +23,32 @@ class ScanStopped(Exception):
 # app's single-user, no-Celery/Redis design.
 _process_lock = threading.Lock()
 _running_processes: dict[int, subprocess.Popen] = {}
-_stop_requested: set[int] = set()
+
+# How long to give a scan to wind down gracefully after SIGTERM (czkawka_core
+# checks its stop flag periodically and flushes its hash cache before
+# exiting) before giving up on that and force-killing it instead.
+_GRACEFUL_STOP_TIMEOUT_SECONDS = 20.0
 
 
 def stop_scan(scan_id: int) -> bool:
-    """Terminates the subprocess for a running scan. Returns False if no
-    scan with that id is currently running."""
+    """Asks a running scan to stop: SIGTERM is translated by the bridge into
+    its internal stop flag, so czkawka_core can wind down gracefully and
+    save its hash cache for whatever was scanned so far, rather than losing
+    that work to an outright kill. Returns False if no scan with that id is
+    currently running."""
     with _process_lock:
         process = _running_processes.get(scan_id)
-        if process is None:
-            return False
-        _stop_requested.add(scan_id)
+    if process is None:
+        return False
     process.terminate()
+
+    def _escalate_if_still_running():
+        try:
+            process.wait(timeout=_GRACEFUL_STOP_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            process.kill()
+
+    threading.Thread(target=_escalate_if_still_running, daemon=True).start()
     return True
 
 
@@ -95,6 +109,7 @@ def run_scan(
     try:
         result = None
         error = None
+        stopped = False
         for raw_line in process.stdout:
             line = raw_line.strip()
             if not line:
@@ -110,12 +125,12 @@ def run_scan(
                 result = payload.get("data")
             elif line_type == "error":
                 error = payload.get("message", "unknown bridge error")
+            elif line_type == "stopped":
+                stopped = True
 
         process.wait()
 
-        with _process_lock:
-            was_stopped = scan_id in _stop_requested
-        if was_stopped:
+        if stopped:
             raise ScanStopped()
         if error is not None or process.returncode != 0:
             stderr = process.stderr.read() if process.stderr else ""
@@ -124,7 +139,6 @@ def run_scan(
     finally:
         with _process_lock:
             _running_processes.pop(scan_id, None)
-            _stop_requested.discard(scan_id)
 
 
 def run_action(op_type: str, src_path: str, dst_path: str | None) -> None:

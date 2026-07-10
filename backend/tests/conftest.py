@@ -62,13 +62,23 @@ def app_client_real_bridge(tmp_path, monkeypatch):
 def app_client_slow_bridge(tmp_path, monkeypatch):
     """Same as `app_client`, but BRIDGE_BIN is a fake scan that sleeps for a
     while before ever producing output - long enough for a test to reliably
-    stop it mid-flight instead of racing a real scan's completion. Uses
-    `exec` so the sleep *replaces* the shell (same pid) instead of running
-    as its child - otherwise SIGTERM would only kill the shell wrapper and
-    leave the orphaned sleep holding the stdout pipe open for the test.
+    stop it mid-flight instead of racing a real scan's completion. On
+    SIGTERM it prints a `stopped` line and exits cleanly, mirroring the real
+    bridge's own graceful-shutdown contract (see bridge/tests/scan_stop.rs
+    for the Rust-side test that this fake stands in for here) - a plain
+    `sleep` wouldn't do that, and this test is about the backend's handling
+    of that contract, not czkawka_core's actual stop/cache behavior.
     """
-    script = tmp_path / "slow-bridge.sh"
-    script.write_text("#!/bin/sh\nexec sleep 30\n")
+    script = tmp_path / "slow-bridge.py"
+    script.write_text(
+        "#!/usr/bin/env python3\n"
+        "import signal, sys, time\n"
+        "def handle_term(signum, frame):\n"
+        "    print('{\"type\": \"stopped\"}', flush=True)\n"
+        "    sys.exit(0)\n"
+        "signal.signal(signal.SIGTERM, handle_term)\n"
+        "time.sleep(30)\n"
+    )
     script.chmod(0o755)
     client, data_root = _make_client(tmp_path, monkeypatch, str(script))
     with client:
