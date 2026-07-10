@@ -37,6 +37,18 @@ class ToolSettings(Base):
     options: Mapped[str] = mapped_column(Text, nullable=False, default="{}")  # JSON-encoded dict
 
 
+class FolderSelection(Base):
+    """The single, globally shared folder list (one list across every tool
+    tab, czkawka_gui-style). A single-row table so any device/browser
+    opening the app sees the same folders instead of each keeping its own
+    local copy."""
+
+    __tablename__ = "folder_selection"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    folders: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON-encoded list[{path, is_reference}]
+
+
 class PendingOperation(Base):
     __tablename__ = "pending_operations"
 

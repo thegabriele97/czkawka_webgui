@@ -4,7 +4,7 @@ from fastapi import FastAPI
 
 from .config import DATA_ROOT
 from .db import init_db
-from .routers import browse, media, operations, scans, settings
+from .routers import browse, folders, media, operations, scans, settings
 
 
 @asynccontextmanager
@@ -21,6 +21,7 @@ app.include_router(scans.router)
 app.include_router(operations.router)
 app.include_router(media.router)
 app.include_router(settings.router)
+app.include_router(folders.router)
 
 
 @app.get("/api/config")

@@ -18,29 +18,32 @@ const NAV_ITEMS = [
   { to: "/queue", label: "Pending Queue", category: null },
 ] as const;
 
-const FOLDERS_STORAGE_KEY = "czkawka-webgui:folders";
-
-function loadStoredFolders(): FolderEntry[] {
-  try {
-    const raw = localStorage.getItem(FOLDERS_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as FolderEntry[]) : [];
-  } catch {
-    return [];
-  }
-}
-
 export function App() {
   const [counts, setCounts] = useState<Record<string, number>>({});
   // Shared across every tool tab (czkawka_gui-style): one folder list, one
   // reference tick per folder, whichever tab you scan next reads from here.
-  // Persisted to localStorage so it survives a reload/reopen the same way
-  // the (backend-side) pending operations queue already does.
-  const [folders, setFolders] = useState<FolderEntry[]>(loadStoredFolders);
+  // Persisted on the backend (not localStorage) so it's the same list
+  // regardless of which device/browser has the app open.
+  const [folders, setFolders] = useState<FolderEntry[]>([]);
+  const [foldersLoaded, setFoldersLoaded] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
-    localStorage.setItem(FOLDERS_STORAGE_KEY, JSON.stringify(folders));
-  }, [folders]);
+    api
+      .getFolders()
+      .then(({ folders }) => setFolders(folders.map((f) => ({ path: f.path, isReference: f.is_reference }))))
+      .catch(() => undefined)
+      .finally(() => setFoldersLoaded(true));
+  }, []);
+
+  useEffect(() => {
+    // Skip the save that would otherwise fire the moment the initial fetch
+    // above resolves - that's just echoing back what the server already
+    // has, and doing it unconditionally would race an empty `folders: []`
+    // write against that fetch on first mount.
+    if (!foldersLoaded) return;
+    api.saveFolders(folders.map((f) => ({ path: f.path, is_reference: f.isReference }))).catch(() => undefined);
+  }, [folders, foldersLoaded]);
 
   const refreshCounts = useCallback(() => {
     api.operationCounts().then((r) => setCounts(r.counts)).catch(() => undefined);
