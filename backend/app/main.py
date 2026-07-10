@@ -10,6 +10,7 @@ from .routers import browse, media, operations, scans, settings
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    scans.mark_interrupted_scans()
     yield
 
 

@@ -66,3 +66,40 @@ def test_latest_scan_is_null_when_tool_never_scanned(app_client):
     response = client.get("/api/scans/latest?tool=bad_extensions")
     assert response.status_code == 200
     assert response.json() is None
+
+
+def test_startup_sweep_errors_out_scans_orphaned_by_a_restart(app_client):
+    # Simulates a scan left behind by a previous process lifetime: its
+    # subprocess is long gone, and so is the in-memory registry that
+    # tracked it, but the DB row still says "running" since nothing else
+    # ever updates it.
+    import app.db
+    import app.models
+    import app.routers.scans as scans_router
+
+    client, _data_root = app_client
+
+    db = app.db.SessionLocal()
+    orphaned = app.models.Scan(
+        tool="duplicates",
+        directories="[]",
+        reference_directories="[]",
+        options="{}",
+        status="running",
+    )
+    db.add(orphaned)
+    db.commit()
+    db.refresh(orphaned)
+    scan_id = orphaned.id
+    db.close()
+
+    scans_router.mark_interrupted_scans()
+
+    body = client.get(f"/api/scans/{scan_id}").json()
+    assert body["status"] == "error"
+    assert "restart" in body["error_message"].lower()
+
+    # And it's no longer stuck: stopping it correctly reports "not running"
+    # instead of leaving it in limbo.
+    stop_response = client.post(f"/api/scans/{scan_id}/stop")
+    assert stop_response.status_code == 400
