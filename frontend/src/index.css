@@ -293,6 +293,16 @@ button.danger:hover:not(:disabled) {
   margin: 0;
 }
 
+.scan-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.scan-progress > *:first-child {
+  flex: 1;
+}
+
 .error {
   color: var(--danger);
 }

@@ -1,5 +1,6 @@
 import json
 import subprocess
+import threading
 from typing import Callable
 
 from .config import BRIDGE_BIN
@@ -10,6 +11,31 @@ TOOL_CLI_NAMES = {
     "similar_videos": "similar-videos",
     "bad_extensions": "bad-extensions",
 }
+
+
+class ScanStopped(Exception):
+    """Raised out of run_scan when the process was terminated via stop_scan,
+    as opposed to failing on its own."""
+
+
+# Tracks the subprocess backing each in-progress scan so a later request can
+# stop it. Single-process, in-memory registry - matches the rest of this
+# app's single-user, no-Celery/Redis design.
+_process_lock = threading.Lock()
+_running_processes: dict[int, subprocess.Popen] = {}
+_stop_requested: set[int] = set()
+
+
+def stop_scan(scan_id: int) -> bool:
+    """Terminates the subprocess for a running scan. Returns False if no
+    scan with that id is currently running."""
+    with _process_lock:
+        process = _running_processes.get(scan_id)
+        if process is None:
+            return False
+        _stop_requested.add(scan_id)
+    process.terminate()
+    return True
 
 
 def _build_scan_command(tool: str, directories: list[str], reference_directories: list[str], options: dict) -> list[str]:
@@ -48,6 +74,7 @@ def _build_scan_command(tool: str, directories: list[str], reference_directories
 
 
 def run_scan(
+    scan_id: int,
     tool: str,
     directories: list[str],
     reference_directories: list[str],
@@ -56,35 +83,48 @@ def run_scan(
 ):
     """Runs the bridge scan subprocess to completion, calling `on_progress`
     for every progress line, and returns the parsed final result payload.
-    Raises RuntimeError with a human-readable message on failure.
+    Raises ScanStopped if stop_scan(scan_id) was called, or RuntimeError
+    with a human-readable message on any other failure.
     """
     cmd = _build_scan_command(tool, directories, reference_directories, options)
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     assert process.stdout is not None
+    with _process_lock:
+        _running_processes[scan_id] = process
 
-    result = None
-    error = None
-    for raw_line in process.stdout:
-        line = raw_line.strip()
-        if not line:
-            continue
-        try:
-            payload = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        line_type = payload.get("type")
-        if line_type == "progress":
-            on_progress(payload.get("label", ""), payload.get("all_progress", -1))
-        elif line_type == "result":
-            result = payload.get("data")
-        elif line_type == "error":
-            error = payload.get("message", "unknown bridge error")
+    try:
+        result = None
+        error = None
+        for raw_line in process.stdout:
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            line_type = payload.get("type")
+            if line_type == "progress":
+                on_progress(payload.get("label", ""), payload.get("all_progress", -1))
+            elif line_type == "result":
+                result = payload.get("data")
+            elif line_type == "error":
+                error = payload.get("message", "unknown bridge error")
 
-    process.wait()
-    if error is not None or process.returncode != 0:
-        stderr = process.stderr.read() if process.stderr else ""
-        raise RuntimeError(error or stderr or f"bridge exited with code {process.returncode}")
-    return result
+        process.wait()
+
+        with _process_lock:
+            was_stopped = scan_id in _stop_requested
+        if was_stopped:
+            raise ScanStopped()
+        if error is not None or process.returncode != 0:
+            stderr = process.stderr.read() if process.stderr else ""
+            raise RuntimeError(error or stderr or f"bridge exited with code {process.returncode}")
+        return result
+    finally:
+        with _process_lock:
+            _running_processes.pop(scan_id, None)
+            _stop_requested.discard(scan_id)
 
 
 def run_action(op_type: str, src_path: str, dst_path: str | None) -> None:

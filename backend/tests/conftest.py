@@ -56,3 +56,20 @@ def app_client_real_bridge(tmp_path, monkeypatch):
     client, data_root = _make_client(tmp_path, monkeypatch, REAL_BRIDGE_BIN)
     with client:
         yield client, data_root
+
+
+@pytest.fixture()
+def app_client_slow_bridge(tmp_path, monkeypatch):
+    """Same as `app_client`, but BRIDGE_BIN is a fake scan that sleeps for a
+    while before ever producing output - long enough for a test to reliably
+    stop it mid-flight instead of racing a real scan's completion. Uses
+    `exec` so the sleep *replaces* the shell (same pid) instead of running
+    as its child - otherwise SIGTERM would only kill the shell wrapper and
+    leave the orphaned sleep holding the stdout pipe open for the test.
+    """
+    script = tmp_path / "slow-bridge.sh"
+    script.write_text("#!/bin/sh\nexec sleep 30\n")
+    script.chmod(0o755)
+    client, data_root = _make_client(tmp_path, monkeypatch, str(script))
+    with client:
+        yield client, data_root

@@ -33,6 +33,7 @@ class ScanOut(BaseModel):
     id: int
     tool: str
     status: str
+    reference_directories: list[str] = []
     progress_label: str | None = None
     progress_all: int | None = None
     result: Any | None = None

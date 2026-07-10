@@ -21,9 +21,22 @@ interface BadExtensionsPageProps {
 export function BadExtensionsPage({ folders }: BadExtensionsPageProps) {
   const [scan, setScan] = useState<ScanOut | null>(null);
   const [starting, setStarting] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const directories = folders.map((f) => f.path);
+
+  // Reattach to whatever scan was last run - the backend keeps it going in
+  // the background regardless of whether anyone's watching, so a page
+  // reload shouldn't make it look like nothing is happening.
+  useEffect(() => {
+    api
+      .getLatestScan("bad_extensions")
+      .then((latest) => {
+        if (latest) setScan(latest);
+      })
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (!scan || scan.status !== "running") return;
@@ -46,6 +59,18 @@ export function BadExtensionsPage({ folders }: BadExtensionsPageProps) {
     }
   }
 
+  async function stopScan() {
+    if (!scan) return;
+    setStopping(true);
+    try {
+      setScan(await api.stopScan(scan.id));
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setStopping(false);
+    }
+  }
+
   const entries = (scan?.status === "done" ? (scan.result as BadExtensionEntry[] | null) : null) ?? [];
 
   return (
@@ -60,8 +85,16 @@ export function BadExtensionsPage({ folders }: BadExtensionsPageProps) {
       </section>
 
       {error && <p className="error">{error}</p>}
-      {scan?.status === "running" && <ProgressBar label={scan.progress_label} percent={scan.progress_all} />}
+      {scan?.status === "running" && (
+        <div className="scan-progress">
+          <ProgressBar label={scan.progress_label} percent={scan.progress_all} />
+          <button onClick={stopScan} disabled={stopping}>
+            Stop scan
+          </button>
+        </div>
+      )}
       {scan?.status === "error" && <p className="error">Error: {scan.error_message}</p>}
+      {scan?.status === "stopped" && <p className="hint">Scan stopped.</p>}
 
       {scan?.status === "done" && (
         <section className="results">

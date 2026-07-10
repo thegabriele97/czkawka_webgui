@@ -22,6 +22,8 @@ export const api = {
 
   createScan: (payload: ScanCreate) => request<ScanOut>("/scans", { method: "POST", body: JSON.stringify(payload) }),
   getScan: (id: number) => request<ScanOut>(`/scans/${id}`),
+  getLatestScan: (tool: Tool) => request<ScanOut | null>(`/scans/latest?tool=${encodeURIComponent(tool)}`),
+  stopScan: (id: number) => request<ScanOut>(`/scans/${id}/stop`, { method: "POST" }),
 
   getToolSettings: (tool: Tool) => request<ToolSettingsOut>(`/settings/${tool}`),
 

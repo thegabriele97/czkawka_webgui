@@ -19,6 +19,7 @@ def _to_out(scan: Scan) -> ScanOut:
         id=scan.id,
         tool=scan.tool,
         status=scan.status,
+        reference_directories=json.loads(scan.reference_directories),
         progress_label=scan.progress_label,
         progress_all=scan.progress_all,
         result=json.loads(scan.result) if scan.result else None,
@@ -93,7 +94,13 @@ def _run_scan_in_background(scan_id: int, tool: str, directories: list[str], ref
             db.commit()
 
         try:
-            result = bridge.run_scan(tool, directories, reference_directories, options, on_progress)
+            result = bridge.run_scan(scan_id, tool, directories, reference_directories, options, on_progress)
+        except bridge.ScanStopped:
+            scan = db.get(Scan, scan_id)
+            scan.status = "stopped"
+            scan.finished_at = datetime.now(timezone.utc)
+            db.commit()
+            return
         except RuntimeError as e:
             scan = db.get(Scan, scan_id)
             scan.status = "error"
@@ -111,9 +118,30 @@ def _run_scan_in_background(scan_id: int, tool: str, directories: list[str], ref
         db.close()
 
 
+@router.get("/latest", response_model=ScanOut | None)
+def get_latest_scan(tool: str, db: Session = Depends(get_db)):
+    """The most recently created scan for this tool, if any - lets the
+    frontend reattach to a scan (running or already finished) after a page
+    reload instead of losing track of it."""
+    scan = db.query(Scan).filter(Scan.tool == tool).order_by(Scan.id.desc()).first()
+    return _to_out(scan) if scan is not None else None
+
+
 @router.get("/{scan_id}", response_model=ScanOut)
 def get_scan(scan_id: int, db: Session = Depends(get_db)):
     scan = db.get(Scan, scan_id)
     if scan is None:
         raise HTTPException(status_code=404, detail="scan not found")
+    return _to_out(scan)
+
+
+@router.post("/{scan_id}/stop", response_model=ScanOut)
+def stop_scan(scan_id: int, db: Session = Depends(get_db)):
+    scan = db.get(Scan, scan_id)
+    if scan is None:
+        raise HTTPException(status_code=404, detail="scan not found")
+    if scan.status != "running":
+        raise HTTPException(status_code=400, detail="scan is not running")
+    if not bridge.stop_scan(scan_id):
+        raise HTTPException(status_code=409, detail="scan process is not currently running")
     return _to_out(scan)
