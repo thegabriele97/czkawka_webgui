@@ -22,10 +22,28 @@ def _build_scan_command(tool: str, directories: list[str], reference_directories
         cmd += ["--min-size", str(options["min_size"])]
     if options.get("max_size") is not None:
         cmd += ["--max-size", str(options["max_size"])]
-    if tool == "similar_images" and options.get("max_difference") is not None:
-        cmd += ["--max-difference", str(options["max_difference"])]
-    if tool == "similar_videos" and options.get("tolerance") is not None:
-        cmd += ["--tolerance", str(options["tolerance"])]
+    if tool == "similar_images":
+        if options.get("max_difference") is not None:
+            cmd += ["--max-difference", str(options["max_difference"])]
+        if options.get("hash_size") is not None:
+            cmd += ["--hash-size", str(options["hash_size"])]
+        if options.get("hash_alg"):
+            cmd += ["--hash-alg", options["hash_alg"]]
+        if options.get("resize_algorithm"):
+            cmd += ["--resize-algorithm", options["resize_algorithm"]]
+        if options.get("ignore_same_size") is not None:
+            cmd += ["--ignore-same-size", "true" if options["ignore_same_size"] else "false"]
+    if tool == "similar_videos":
+        if options.get("tolerance") is not None:
+            cmd += ["--tolerance", str(options["tolerance"])]
+        if options.get("ignore_same_size") is not None:
+            cmd += ["--ignore-same-size", "true" if options["ignore_same_size"] else "false"]
+        if options.get("crop_detect") is not None:
+            cmd += ["--crop-detect", "true" if options["crop_detect"] else "false"]
+        if options.get("skip_forward_amount") is not None:
+            cmd += ["--skip-forward-amount", str(options["skip_forward_amount"])]
+        if options.get("vid_hash_duration") is not None:
+            cmd += ["--vid-hash-duration", str(options["vid_hash_duration"])]
     return cmd
 
 

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use clap::{Args, ValueEnum};
+use clap::{ArgAction, Args, ValueEnum};
 use crossbeam_channel::{unbounded, Sender};
 use czkawka_core::common::model::{CheckingMethod, HashType};
 use czkawka_core::common::progress_data::ProgressData;
@@ -31,6 +31,56 @@ pub enum Tool {
     BadExtensions,
 }
 
+/// Mirrors `image_hasher::HashAlg`, which doesn't implement `ValueEnum`
+/// itself since it lives in an upstream crate.
+#[derive(Clone, Copy, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub enum ImageHashAlg {
+    Mean,
+    Median,
+    Gradient,
+    VertGradient,
+    DoubleGradient,
+    Blockhash,
+}
+
+impl From<ImageHashAlg> for HashAlg {
+    fn from(value: ImageHashAlg) -> Self {
+        match value {
+            ImageHashAlg::Mean => HashAlg::Mean,
+            ImageHashAlg::Median => HashAlg::Median,
+            ImageHashAlg::Gradient => HashAlg::Gradient,
+            ImageHashAlg::VertGradient => HashAlg::VertGradient,
+            ImageHashAlg::DoubleGradient => HashAlg::DoubleGradient,
+            ImageHashAlg::Blockhash => HashAlg::Blockhash,
+        }
+    }
+}
+
+/// Mirrors `image::imageops::FilterType`, which doesn't implement
+/// `ValueEnum` itself since it lives in an upstream crate.
+#[derive(Clone, Copy, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub enum ImageResizeAlgorithm {
+    Nearest,
+    Triangle,
+    CatmullRom,
+    Gaussian,
+    Lanczos3,
+}
+
+impl From<ImageResizeAlgorithm> for FilterType {
+    fn from(value: ImageResizeAlgorithm) -> Self {
+        match value {
+            ImageResizeAlgorithm::Nearest => FilterType::Nearest,
+            ImageResizeAlgorithm::Triangle => FilterType::Triangle,
+            ImageResizeAlgorithm::CatmullRom => FilterType::CatmullRom,
+            ImageResizeAlgorithm::Gaussian => FilterType::Gaussian,
+            ImageResizeAlgorithm::Lanczos3 => FilterType::Lanczos3,
+        }
+    }
+}
+
 #[derive(Args, Clone)]
 pub struct ScanArgs {
     #[arg(long, value_enum)]
@@ -52,6 +102,30 @@ pub struct ScanArgs {
     /// Similar videos only: maximum frame difference (0-20).
     #[arg(long = "tolerance", default_value_t = 10)]
     pub tolerance: i32,
+    /// Similar images/videos: ignore matches whose files also share the
+    /// exact same size (they're almost certainly true duplicates already
+    /// caught by the Duplicates tool).
+    #[arg(long = "ignore-same-size", action = ArgAction::Set, default_value_t = false)]
+    pub ignore_same_size: bool,
+    /// Similar images only: hash size in bits (must be 8, 16, 32, or 64).
+    #[arg(long = "hash-size", default_value_t = 16)]
+    pub hash_size: u8,
+    /// Similar images only: perceptual hash algorithm.
+    #[arg(long = "hash-alg", value_enum, default_value = "gradient")]
+    pub hash_alg: ImageHashAlg,
+    /// Similar images only: resize algorithm applied before hashing.
+    #[arg(long = "resize-algorithm", value_enum, default_value = "nearest")]
+    pub resize_algorithm: ImageResizeAlgorithm,
+    /// Similar videos only: run ffmpeg's crop-detect pass before hashing.
+    #[arg(long = "crop-detect", action = ArgAction::Set, default_value_t = DEFAULT_CROP_DETECT)]
+    pub crop_detect: bool,
+    /// Similar videos only: seconds to skip from the start of each video
+    /// before sampling frames (skips intros/black frames).
+    #[arg(long = "skip-forward-amount", default_value_t = DEFAULT_SKIP_FORWARD_AMOUNT)]
+    pub skip_forward_amount: u32,
+    /// Similar videos only: seconds of video sampled to build the hash.
+    #[arg(long = "vid-hash-duration", default_value_t = DEFAULT_VID_HASH_DURATION)]
+    pub vid_hash_duration: u32,
 }
 
 pub fn run_scan(args: ScanArgs) -> u8 {
@@ -127,13 +201,16 @@ fn run_duplicates(args: &ScanArgs, stop_flag: &Arc<AtomicBool>, progress_sender:
 }
 
 fn run_similar_images(args: &ScanArgs, stop_flag: &Arc<AtomicBool>, progress_sender: &Sender<ProgressData>) -> Result<Value, String> {
+    if ![8, 16, 32, 64].contains(&args.hash_size) {
+        return Err(format!("hash_size must be one of 8, 16, 32, or 64 (got {})", args.hash_size));
+    }
     let params = SimilarImagesParameters::new(
         args.max_difference,
-        16, // hash_size
-        HashAlg::Gradient,
-        FilterType::Nearest,
-        false, // ignore_same_size
-        false, // ignore_same_resolution
+        args.hash_size,
+        args.hash_alg.into(),
+        args.resize_algorithm.into(),
+        args.ignore_same_size,
+        false, // ignore_same_resolution (not exposed yet)
         GeometricInvariance::Off,
     );
     let mut tool = SimilarImages::new(params);
@@ -146,11 +223,11 @@ fn run_similar_images(args: &ScanArgs, stop_flag: &Arc<AtomicBool>, progress_sen
 fn run_similar_videos(args: &ScanArgs, stop_flag: &Arc<AtomicBool>, progress_sender: &Sender<ProgressData>) -> Result<Value, String> {
     let params = SimilarVideosParameters::new(
         args.tolerance,
-        false, // ignore_same_size
-        false, // ignore_same_resolution
-        DEFAULT_SKIP_FORWARD_AMOUNT,
-        DEFAULT_VID_HASH_DURATION,
-        DEFAULT_CROP_DETECT,
+        args.ignore_same_size,
+        false, // ignore_same_resolution (not exposed yet)
+        args.skip_forward_amount,
+        args.vid_hash_duration,
+        args.crop_detect,
         DEFAULT_WINDOW_COUNT,
         DEFAULT_DURATION_TOLERANCE_PCT,
         DEFAULT_MIN_MATCHING_WINDOWS,

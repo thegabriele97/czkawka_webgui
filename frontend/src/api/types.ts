@@ -1,5 +1,9 @@
 export type Tool = "duplicates" | "similar_images" | "similar_videos" | "bad_extensions";
 
+export type HashAlg = "mean" | "median" | "gradient" | "vert-gradient" | "double-gradient" | "blockhash";
+export type ResizeAlgorithm = "nearest" | "triangle" | "catmull-rom" | "gaussian" | "lanczos3";
+export type HashSize = 8 | 16 | 32 | 64;
+
 /** One folder in the globally shared selection (same list across every
  * tab, czkawka_gui-style): a plain scan target, or ticked as the
  * untouchable reference. */
@@ -20,8 +24,22 @@ export interface ScanCreate {
   reference_directories?: string[];
   min_size?: number;
   max_size?: number | null;
+  // Similar images
   max_difference?: number;
+  ignore_same_size?: boolean;
+  hash_size?: HashSize;
+  hash_alg?: HashAlg;
+  resize_algorithm?: ResizeAlgorithm;
+  // Similar videos
   tolerance?: number;
+  crop_detect?: boolean;
+  skip_forward_amount?: number;
+  vid_hash_duration?: number;
+}
+
+export interface ToolSettingsOut {
+  tool: string;
+  options: Record<string, unknown>;
 }
 
 export type ScanStatus = "pending" | "running" | "done" | "error";

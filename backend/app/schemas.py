@@ -5,6 +5,9 @@ from pydantic import BaseModel
 Tool = Literal["duplicates", "similar_images", "similar_videos", "bad_extensions"]
 Category = Tool
 OpType = Literal["delete", "hardlink"]
+HashAlg = Literal["mean", "median", "gradient", "vert-gradient", "double-gradient", "blockhash"]
+ResizeAlgorithm = Literal["nearest", "triangle", "catmull-rom", "gaussian", "lanczos3"]
+HashSize = Literal[8, 16, 32, 64]
 
 
 class ScanCreate(BaseModel):
@@ -13,8 +16,17 @@ class ScanCreate(BaseModel):
     reference_directories: list[str] = []
     min_size: int = 0
     max_size: int | None = None
+    # Similar images
     max_difference: int = 5
+    ignore_same_size: bool = False
+    hash_size: HashSize = 16
+    hash_alg: HashAlg = "gradient"
+    resize_algorithm: ResizeAlgorithm = "nearest"
+    # Similar videos
     tolerance: int = 10
+    crop_detect: bool = True
+    skip_forward_amount: int = 15
+    vid_hash_duration: int = 10
 
 
 class ScanOut(BaseModel):
@@ -52,3 +64,8 @@ class BrowseEntry(BaseModel):
     name: str
     path: str
     is_dir: bool
+
+
+class ToolSettingsOut(BaseModel):
+    tool: str
+    options: dict

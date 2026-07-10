@@ -1,4 +1,8 @@
+import shutil
 import time
+from pathlib import Path
+
+FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent / "bridge" / "tests" / "fixtures"
 
 
 def _wait_for_scan(client, scan_id: int, timeout: float = 15.0) -> dict:
@@ -33,6 +37,32 @@ def test_duplicates_scan_finds_identical_files(app_client_real_bridge):
     result_text = str(body["result"])
     assert str(library / "photo1.txt") in result_text
     assert str(downloads / "photo1_copy.txt") in result_text
+
+
+def test_similar_images_scan_accepts_custom_options(app_client_real_bridge):
+    client, data_root = app_client_real_bridge
+    folder = data_root / "library"
+    folder.mkdir()
+    shutil.copy(FIXTURES_DIR / "image_a.png", folder / "image_a.png")
+    shutil.copy(FIXTURES_DIR / "image_b.png", folder / "image_b.png")
+
+    response = client.post(
+        "/api/scans",
+        json={
+            "tool": "similar_images",
+            "directories": [str(folder)],
+            "max_difference": 40,
+            "hash_size": 8,
+            "hash_alg": "blockhash",
+            "resize_algorithm": "lanczos3",
+            "ignore_same_size": True,
+        },
+    )
+    assert response.status_code == 200
+    scan_id = response.json()["id"]
+
+    body = _wait_for_scan(client, scan_id)
+    assert body["status"] == "done", body.get("error_message")
 
 
 def test_scan_rejects_directory_outside_data_root(app_client):

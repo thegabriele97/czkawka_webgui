@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from .. import bridge
 from ..db import SessionLocal, get_db
-from ..models import Scan
+from ..models import Scan, ToolSettings
 from ..paths import resolve_under_data_root
 from ..schemas import ScanCreate, ScanOut
 
@@ -27,33 +27,55 @@ def _to_out(scan: Scan) -> ScanOut:
 
 
 def _options_dict(payload: ScanCreate) -> dict:
-    return {
-        "min_size": payload.min_size,
-        "max_size": payload.max_size,
-        "max_difference": payload.max_difference,
-        "tolerance": payload.tolerance,
-    }
+    options = {"min_size": payload.min_size, "max_size": payload.max_size}
+    if payload.tool == "similar_images":
+        options.update(
+            max_difference=payload.max_difference,
+            ignore_same_size=payload.ignore_same_size,
+            hash_size=payload.hash_size,
+            hash_alg=payload.hash_alg,
+            resize_algorithm=payload.resize_algorithm,
+        )
+    elif payload.tool == "similar_videos":
+        options.update(
+            tolerance=payload.tolerance,
+            ignore_same_size=payload.ignore_same_size,
+            crop_detect=payload.crop_detect,
+            skip_forward_amount=payload.skip_forward_amount,
+            vid_hash_duration=payload.vid_hash_duration,
+        )
+    return options
+
+
+def _save_tool_settings(db: Session, tool: str, options: dict) -> None:
+    settings = db.get(ToolSettings, tool)
+    if settings is None:
+        settings = ToolSettings(tool=tool)
+        db.add(settings)
+    settings.options = json.dumps(options)
 
 
 @router.post("", response_model=ScanOut)
 def create_scan(payload: ScanCreate, db: Session = Depends(get_db)):
     directories = [str(resolve_under_data_root(d)) for d in payload.directories]
     reference_directories = [str(resolve_under_data_root(d)) for d in payload.reference_directories]
+    options = _options_dict(payload)
 
     scan = Scan(
         tool=payload.tool,
         directories=json.dumps(directories),
         reference_directories=json.dumps(reference_directories),
-        options=json.dumps(_options_dict(payload)),
+        options=json.dumps(options),
         status="running",
     )
     db.add(scan)
+    _save_tool_settings(db, payload.tool, options)
     db.commit()
     db.refresh(scan)
 
     thread = threading.Thread(
         target=_run_scan_in_background,
-        args=(scan.id, payload.tool, directories, reference_directories, _options_dict(payload)),
+        args=(scan.id, payload.tool, directories, reference_directories, options),
         daemon=True,
     )
     thread.start()
