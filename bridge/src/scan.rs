@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -132,6 +132,15 @@ pub fn run_scan(args: ScanArgs) -> u8 {
     let (progress_sender, progress_receiver) = unbounded::<ProgressData>();
     let stop_flag = Arc::new(AtomicBool::new(false));
 
+    // Lets the backend's "stop scan" ask us to wind down gracefully instead
+    // of being killed outright: czkawka_core polls this same flag during
+    // its search loops and, on finding it set, saves its hash cache for
+    // whatever was scanned so far before returning - work that a hard kill
+    // would otherwise throw away.
+    if let Err(e) = signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&stop_flag)) {
+        eprintln!("czkawka-bridge: failed to register SIGTERM handler: {e}");
+    }
+
     let progress_thread = thread::spawn(move || {
         for progress in progress_receiver.iter() {
             let display = progress.to_display();
@@ -157,6 +166,10 @@ pub fn run_scan(args: ScanArgs) -> u8 {
     let _ = progress_thread.join();
 
     match result {
+        Ok(_) if stop_flag.load(Ordering::Relaxed) => {
+            emit(&Envelope::Stopped);
+            0
+        }
         Ok(data) => {
             emit(&Envelope::Result { data });
             0

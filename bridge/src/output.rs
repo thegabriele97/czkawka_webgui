@@ -19,6 +19,11 @@ pub enum Envelope {
     Error {
         message: String,
     },
+    /// Emitted instead of `Result` when a stop was requested (SIGTERM) and
+    /// czkawka_core wound down gracefully - as opposed to being killed
+    /// outright, this gives it a chance to flush its hash cache for
+    /// whatever was scanned before the request came in.
+    Stopped,
 }
 
 pub fn emit(envelope: &Envelope) {
