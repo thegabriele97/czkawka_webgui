@@ -56,6 +56,24 @@ def _save_tool_settings(db: Session, tool: str, options: dict) -> None:
     settings.options = json.dumps(options)
 
 
+def mark_interrupted_scans() -> None:
+    """Called once at startup: any scan still marked "running" belongs to a
+    previous process lifetime that's gone - its subprocess died with the
+    old process along with the in-memory registry tracking it, so nothing
+    will ever move it out of "running" on its own, and stopping it would
+    always 409 since no such process is registered anymore."""
+    db = SessionLocal()
+    try:
+        interrupted = db.query(Scan).filter(Scan.status == "running").all()
+        for scan in interrupted:
+            scan.status = "error"
+            scan.error_message = "Scan was interrupted by a server restart"
+            scan.finished_at = datetime.now(timezone.utc)
+        db.commit()
+    finally:
+        db.close()
+
+
 @router.post("", response_model=ScanOut)
 def create_scan(payload: ScanCreate, db: Session = Depends(get_db)):
     directories = [str(resolve_under_data_root(d)) for d in payload.directories]
