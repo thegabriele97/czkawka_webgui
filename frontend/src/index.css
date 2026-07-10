@@ -248,13 +248,43 @@ button.danger:hover:not(:disabled) {
   font-size: 0.8rem;
 }
 
-.option input {
+.option input,
+.option select {
   width: 4rem;
   padding: 0.2rem 0.35rem;
   border: 1px solid var(--border);
   border-radius: 5px;
   background: var(--bg);
   color: var(--fg);
+}
+
+.option select {
+  width: auto;
+}
+
+.options-menu {
+  flex-basis: 100%;
+}
+
+.options-menu summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--fg);
+  padding: 0.3rem 0;
+  user-select: none;
+}
+
+.options-menu-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0 0.75rem;
+}
+
+.option input[type="checkbox"] {
+  width: auto;
 }
 
 .hint {

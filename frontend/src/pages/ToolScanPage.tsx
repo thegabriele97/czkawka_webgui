@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { normalizeGroups } from "../api/normalizeGroups";
-import type { FileEntryLike, FolderEntry, ScanOut, Tool } from "../api/types";
+import type { FileEntryLike, FolderEntry, HashAlg, HashSize, ResizeAlgorithm, ScanOut, Tool } from "../api/types";
 import { PreviewOverlay } from "../components/PreviewOverlay";
 import { PreviewPanel } from "../components/PreviewPanel";
 import { ProgressBar } from "../components/ProgressBar";
@@ -31,6 +31,15 @@ interface ToolScanPageProps {
 export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPageProps) {
   const [maxDifference, setMaxDifference] = useState(5);
   const [tolerance, setTolerance] = useState(10);
+  const [ignoreSameSize, setIgnoreSameSize] = useState(false);
+  // Similar images only
+  const [hashSize, setHashSize] = useState<HashSize>(16);
+  const [hashAlg, setHashAlg] = useState<HashAlg>("gradient");
+  const [resizeAlgorithm, setResizeAlgorithm] = useState<ResizeAlgorithm>("nearest");
+  // Similar videos only
+  const [cropDetect, setCropDetect] = useState(true);
+  const [skipForwardAmount, setSkipForwardAmount] = useState(15);
+  const [vidHashDuration, setVidHashDuration] = useState(10);
   const [scan, setScan] = useState<ScanOut | null>(null);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +63,25 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
     return () => clearInterval(interval);
   }, [scan?.id, scan?.status]);
 
+  // Pre-fill the options form with whatever was last used for this tool,
+  // so the user doesn't have to re-enter them on every visit.
+  useEffect(() => {
+    api
+      .getToolSettings(config.tool)
+      .then(({ options: o }) => {
+        if (typeof o.max_difference === "number") setMaxDifference(o.max_difference);
+        if (typeof o.tolerance === "number") setTolerance(o.tolerance);
+        if (typeof o.ignore_same_size === "boolean") setIgnoreSameSize(o.ignore_same_size);
+        if (typeof o.hash_size === "number") setHashSize(o.hash_size as HashSize);
+        if (typeof o.hash_alg === "string") setHashAlg(o.hash_alg as HashAlg);
+        if (typeof o.resize_algorithm === "string") setResizeAlgorithm(o.resize_algorithm as ResizeAlgorithm);
+        if (typeof o.crop_detect === "boolean") setCropDetect(o.crop_detect);
+        if (typeof o.skip_forward_amount === "number") setSkipForwardAmount(o.skip_forward_amount);
+        if (typeof o.vid_hash_duration === "number") setVidHashDuration(o.vid_hash_duration);
+      })
+      .catch(() => undefined);
+  }, [config.tool]);
+
   async function startScan() {
     setError(null);
     setStarting(true);
@@ -66,6 +94,13 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
         reference_directories: referenceDirectories,
         max_difference: maxDifference,
         tolerance,
+        ignore_same_size: ignoreSameSize,
+        hash_size: hashSize,
+        hash_alg: hashAlg,
+        resize_algorithm: resizeAlgorithm,
+        crop_detect: cropDetect,
+        skip_forward_amount: skipForwardAmount,
+        vid_hash_duration: vidHashDuration,
       });
       setScan(created);
     } catch (e) {
@@ -82,17 +117,74 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
       <h2>{config.title}</h2>
 
       <section className="scan-controls">
-        {config.supportsMaxDifference && (
-          <label className="option">
-            Max difference (0-40):
-            <input type="number" min={0} max={40} value={maxDifference} onChange={(e) => setMaxDifference(Number(e.target.value))} />
-          </label>
-        )}
-        {config.supportsTolerance && (
-          <label className="option">
-            Tolerance (0-20):
-            <input type="number" min={0} max={20} value={tolerance} onChange={(e) => setTolerance(Number(e.target.value))} />
-          </label>
+        {(config.supportsMaxDifference || config.supportsTolerance) && (
+          <details className="options-menu">
+            <summary>Scan options</summary>
+            <div className="options-menu-body">
+              {config.supportsMaxDifference && (
+                <>
+                  <label className="option">
+                    Max difference (0-40):
+                    <input type="number" min={0} max={40} value={maxDifference} onChange={(e) => setMaxDifference(Number(e.target.value))} />
+                  </label>
+                  <label className="option">
+                    Hash size:
+                    <select value={hashSize} onChange={(e) => setHashSize(Number(e.target.value) as HashSize)}>
+                      <option value={8}>8</option>
+                      <option value={16}>16</option>
+                      <option value={32}>32</option>
+                      <option value={64}>64</option>
+                    </select>
+                  </label>
+                  <label className="option">
+                    Hash type:
+                    <select value={hashAlg} onChange={(e) => setHashAlg(e.target.value as HashAlg)}>
+                      <option value="mean">Mean</option>
+                      <option value="median">Median</option>
+                      <option value="gradient">Gradient</option>
+                      <option value="vert-gradient">Vertical gradient</option>
+                      <option value="double-gradient">Double gradient</option>
+                      <option value="blockhash">Blockhash</option>
+                    </select>
+                  </label>
+                  <label className="option">
+                    Resize algorithm:
+                    <select value={resizeAlgorithm} onChange={(e) => setResizeAlgorithm(e.target.value as ResizeAlgorithm)}>
+                      <option value="nearest">Nearest</option>
+                      <option value="triangle">Triangle</option>
+                      <option value="catmull-rom">Catmull-Rom</option>
+                      <option value="gaussian">Gaussian</option>
+                      <option value="lanczos3">Lanczos3</option>
+                    </select>
+                  </label>
+                </>
+              )}
+              {config.supportsTolerance && (
+                <>
+                  <label className="option">
+                    Max difference (0-20):
+                    <input type="number" min={0} max={20} value={tolerance} onChange={(e) => setTolerance(Number(e.target.value))} />
+                  </label>
+                  <label className="option checkbox">
+                    <input type="checkbox" checked={cropDetect} onChange={(e) => setCropDetect(e.target.checked)} />
+                    Crop detect
+                  </label>
+                  <label className="option">
+                    Skip duration (s):
+                    <input type="number" min={0} value={skipForwardAmount} onChange={(e) => setSkipForwardAmount(Number(e.target.value))} />
+                  </label>
+                  <label className="option">
+                    Video hash duration (s):
+                    <input type="number" min={1} value={vidHashDuration} onChange={(e) => setVidHashDuration(Number(e.target.value))} />
+                  </label>
+                </>
+              )}
+              <label className="option checkbox">
+                <input type="checkbox" checked={ignoreSameSize} onChange={(e) => setIgnoreSameSize(e.target.checked)} />
+                Ignore files with same size
+              </label>
+            </div>
+          </details>
         )}
 
         <button className="primary" onClick={startScan} disabled={directories.length === 0 || starting || scan?.status === "running"}>

@@ -27,6 +27,16 @@ class Scan(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class ToolSettings(Base):
+    """The scan options last used for a given tool, so the form can be
+    pre-filled next time instead of the user re-entering them."""
+
+    __tablename__ = "tool_settings"
+
+    tool: Mapped[str] = mapped_column(String, primary_key=True)
+    options: Mapped[str] = mapped_column(Text, nullable=False, default="{}")  # JSON-encoded dict
+
+
 class PendingOperation(Base):
     __tablename__ = "pending_operations"
 

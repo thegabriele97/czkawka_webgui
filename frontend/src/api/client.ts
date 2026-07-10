@@ -1,4 +1,4 @@
-import type { BrowseEntry, OperationCreate, OperationOut, ScanCreate, ScanOut } from "./types";
+import type { BrowseEntry, OperationCreate, OperationOut, ScanCreate, ScanOut, Tool, ToolSettingsOut } from "./types";
 
 const BASE = "/api";
 
@@ -22,6 +22,8 @@ export const api = {
 
   createScan: (payload: ScanCreate) => request<ScanOut>("/scans", { method: "POST", body: JSON.stringify(payload) }),
   getScan: (id: number) => request<ScanOut>(`/scans/${id}`),
+
+  getToolSettings: (tool: Tool) => request<ToolSettingsOut>(`/settings/${tool}`),
 
   operationCounts: () => request<{ counts: Record<string, number> }>("/operations/counts"),
   listOperations: (category: string) => request<OperationOut[]>(`/operations?category=${encodeURIComponent(category)}`),
