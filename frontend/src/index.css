@@ -784,7 +784,30 @@ td.col-actions {
     grid-template-columns: 1fr;
   }
 
+  /* A fixed bottom bar instead of a column that stacks below the whole
+     results list - otherwise seeing the preview means scrolling all the way
+     down past every group first, every single time a row is selected. */
   .preview-panel {
-    position: static;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    max-height: 45vh;
+    overflow-y: auto;
+    border-radius: var(--radius) var(--radius) 0 0;
+    box-shadow: 0 -2px 12px #0004;
+  }
+
+  /* Nothing selected yet: no point reserving screen space for the "select
+     a file" placeholder. */
+  .preview-panel-empty {
+    display: none;
+  }
+
+  /* Leaves room so the fixed bar above never covers the last couple of rows
+     while something is selected. */
+  .results-list.has-preview {
+    padding-bottom: 45vh;
   }
 }
