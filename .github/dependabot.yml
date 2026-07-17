@@ -1,0 +1,15 @@
+version: 2
+updates:
+  # Includes czkawka_core itself along with the other bridge dependencies
+  # (clap, serde, signal-hook, ...). Opens a PR per outdated dependency;
+  # the existing CI workflow already runs on pull_request, so bridge/backend/
+  # frontend tests execute automatically against the bump.
+  - package-ecosystem: "cargo"
+    directory: "/bridge"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "rust"
+    commit-message:
+      prefix: "chore(bridge)"
