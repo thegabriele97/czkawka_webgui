@@ -22,6 +22,7 @@ class Scan(Base):
     progress_label: Mapped[str | None] = mapped_column(String, nullable=True)
     progress_all: Mapped[int | None] = mapped_column(Integer, nullable=True)
     result: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON-encoded
+    messages: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON-encoded {messages,warnings,errors} from czkawka_core
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -54,9 +55,9 @@ class PendingOperation(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     category: Mapped[str] = mapped_column(String, nullable=False)  # duplicates|similar_images|similar_videos|bad_extensions
-    op_type: Mapped[str] = mapped_column(String, nullable=False)  # delete|hardlink
+    op_type: Mapped[str] = mapped_column(String, nullable=False)  # delete|hardlink|rename
     src_path: Mapped[str] = mapped_column(String, nullable=False)
-    dst_path: Mapped[str | None] = mapped_column(String, nullable=True)  # only for hardlink
+    dst_path: Mapped[str | None] = mapped_column(String, nullable=True)  # hardlink target / rename destination
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")  # pending|done|failed
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)

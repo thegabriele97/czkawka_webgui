@@ -8,7 +8,14 @@ const CATEGORIES: { value: Tool; label: string }[] = [
   { value: "duplicates", label: "Duplicates" },
   { value: "similar_images", label: "Similar Images" },
   { value: "similar_videos", label: "Similar Videos" },
+  { value: "bad_extensions", label: "Bad Extensions" },
 ];
+
+const OP_TYPE_LABELS: Record<string, string> = {
+  delete: "Delete",
+  hardlink: "Hardlink",
+  rename: "Rename",
+};
 
 export function PendingQueuePage({ onApplied }: { onApplied: () => void }) {
   const [category, setCategory] = useState<Tool>("duplicates");
@@ -62,7 +69,7 @@ export function PendingQueuePage({ onApplied }: { onApplied: () => void }) {
       <ul className="operation-list">
         {operations.map((op) => (
           <li key={op.id}>
-            <span className="op-type">{op.op_type === "delete" ? "Delete" : "Hardlink"}</span>
+            <span className="op-type">{OP_TYPE_LABELS[op.op_type] ?? op.op_type}</span>
             <span className="op-src">{displayPath(op.src_path, dataRoot)}</span>
             {op.dst_path && (
               <>
