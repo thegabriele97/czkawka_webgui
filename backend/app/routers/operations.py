@@ -51,8 +51,8 @@ def list_operations(category: str, db: Session = Depends(get_db)):
 
 @router.post("", response_model=OperationOut)
 def create_operation(payload: OperationCreate, db: Session = Depends(get_db)):
-    if payload.op_type == "hardlink" and not payload.dst_path:
-        raise HTTPException(status_code=400, detail="hardlink operations require dst_path")
+    if payload.op_type in ("hardlink", "rename") and not payload.dst_path:
+        raise HTTPException(status_code=400, detail=f"{payload.op_type} operations require dst_path")
 
     src = resolve_under_data_root(payload.src_path)
     dst = resolve_under_data_root(payload.dst_path) if payload.dst_path else None

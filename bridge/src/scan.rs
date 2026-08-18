@@ -21,7 +21,11 @@ use czkawka_core::tools::similar_videos::{
 };
 use serde_json::Value;
 
-use crate::output::{emit, Envelope};
+use crate::output::{emit, Envelope, ScanMessages};
+
+/// A tool's own JSON result plus whatever czkawka_core had to say about
+/// the files it couldn't handle while producing it.
+type ScanResult = Result<(Value, ScanMessages), String>;
 
 #[derive(Clone, Copy, ValueEnum)]
 pub enum Tool {
@@ -166,12 +170,13 @@ pub fn run_scan(args: ScanArgs) -> u8 {
     let _ = progress_thread.join();
 
     match result {
-        Ok(_) if stop_flag.load(Ordering::Relaxed) => {
-            emit(&Envelope::Stopped);
-            0
-        }
-        Ok(data) => {
-            emit(&Envelope::Result { data });
+        Ok((data, messages)) => {
+            emit(&Envelope::Messages(messages));
+            if stop_flag.load(Ordering::Relaxed) {
+                emit(&Envelope::Stopped);
+            } else {
+                emit(&Envelope::Result { data });
+            }
             0
         }
         Err(message) => {
@@ -197,7 +202,7 @@ fn apply_common<T: CommonData>(tool: &mut T, args: &ScanArgs) {
     }
 }
 
-fn run_duplicates(args: &ScanArgs, stop_flag: &Arc<AtomicBool>, progress_sender: &Sender<ProgressData>) -> Result<Value, String> {
+fn run_duplicates(args: &ScanArgs, stop_flag: &Arc<AtomicBool>, progress_sender: &Sender<ProgressData>) -> ScanResult {
     let params = DuplicateFinderParameters::new(
         CheckingMethod::Hash,
         HashType::Blake3,
@@ -213,7 +218,7 @@ fn run_duplicates(args: &ScanArgs, stop_flag: &Arc<AtomicBool>, progress_sender:
     read_json_result(&tool)
 }
 
-fn run_similar_images(args: &ScanArgs, stop_flag: &Arc<AtomicBool>, progress_sender: &Sender<ProgressData>) -> Result<Value, String> {
+fn run_similar_images(args: &ScanArgs, stop_flag: &Arc<AtomicBool>, progress_sender: &Sender<ProgressData>) -> ScanResult {
     if ![8, 16, 32, 64].contains(&args.hash_size) {
         return Err(format!("hash_size must be one of 8, 16, 32, or 64 (got {})", args.hash_size));
     }
@@ -233,7 +238,7 @@ fn run_similar_images(args: &ScanArgs, stop_flag: &Arc<AtomicBool>, progress_sen
     read_json_result(&tool)
 }
 
-fn run_similar_videos(args: &ScanArgs, stop_flag: &Arc<AtomicBool>, progress_sender: &Sender<ProgressData>) -> Result<Value, String> {
+fn run_similar_videos(args: &ScanArgs, stop_flag: &Arc<AtomicBool>, progress_sender: &Sender<ProgressData>) -> ScanResult {
     let params = SimilarVideosParameters::new(
         args.tolerance,
         args.ignore_same_size,
@@ -262,7 +267,7 @@ fn run_similar_videos(args: &ScanArgs, stop_flag: &Arc<AtomicBool>, progress_sen
     read_json_result(&tool)
 }
 
-fn run_bad_extensions(args: &ScanArgs, stop_flag: &Arc<AtomicBool>, progress_sender: &Sender<ProgressData>) -> Result<Value, String> {
+fn run_bad_extensions(args: &ScanArgs, stop_flag: &Arc<AtomicBool>, progress_sender: &Sender<ProgressData>) -> ScanResult {
     let params = BadExtensionsParameters::new();
     let mut tool = BadExtensions::new(params);
     apply_common(&mut tool, args);
@@ -274,7 +279,7 @@ fn run_bad_extensions(args: &ScanArgs, stop_flag: &Arc<AtomicBool>, progress_sen
 /// "save as JSON" feature) instead of hand-rolling serialization of each
 /// tool's internal result types, so the result shape follows upstream rather
 /// than an assumption of ours that could drift on a version bump.
-fn read_json_result<T: PrintResults>(tool: &T) -> Result<Value, String> {
+fn read_json_result<T: PrintResults + CommonData>(tool: &T) -> ScanResult {
     let unique = format!("{}-{}", std::process::id(), SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos());
     let tmp_path = std::env::temp_dir().join(format!("czkawka-bridge-{unique}.json"));
     let tmp_path_str = tmp_path.to_str().ok_or("temp path is not valid UTF-8")?;
@@ -284,5 +289,13 @@ fn read_json_result<T: PrintResults>(tool: &T) -> Result<Value, String> {
     let contents = std::fs::read_to_string(&tmp_path).map_err(|e| format!("failed to read serialized results: {e}"))?;
     let _ = std::fs::remove_file(&tmp_path);
 
-    serde_json::from_str(&contents).map_err(|e| format!("failed to parse serialized results: {e}"))
+    let data = serde_json::from_str(&contents).map_err(|e| format!("failed to parse serialized results: {e}"))?;
+
+    let text_messages = tool.get_text_messages();
+    let messages = ScanMessages {
+        messages: text_messages.messages.clone(),
+        warnings: text_messages.warnings.clone(),
+        errors: text_messages.errors.clone(),
+    };
+    Ok((data, messages))
 }

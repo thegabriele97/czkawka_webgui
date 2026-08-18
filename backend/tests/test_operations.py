@@ -86,3 +86,50 @@ def test_apply_is_best_effort_across_failures(app_client, monkeypatch):
 
     # Applied operations should not show up in a later counts/pending listing.
     assert client.get("/api/operations/counts").json()["counts"] == {}
+
+
+def test_rename_requires_dst_path(app_client):
+    client, data_root = app_client
+    src = data_root / "photo.txt"
+    src.write_text("a")
+
+    response = client.post(
+        "/api/operations",
+        json={"category": "bad_extensions", "op_type": "rename", "src_path": str(src)},
+    )
+    assert response.status_code == 400
+
+
+def test_apply_rename_moves_the_file(app_client_real_bridge):
+    client, data_root = app_client_real_bridge
+    src = data_root / "photo.txt"
+    dst = data_root / "photo.jpg"
+    src.write_text("actually a jpeg")
+
+    client.post(
+        "/api/operations",
+        json={"category": "bad_extensions", "op_type": "rename", "src_path": str(src), "dst_path": str(dst)},
+    )
+
+    report = client.post("/api/operations/apply", params={"category": "bad_extensions"}).json()
+    assert report[0]["status"] == "done", report[0]["error_message"]
+    assert not src.exists()
+    assert dst.read_text() == "actually a jpeg"
+
+
+def test_apply_rename_does_not_clobber_an_existing_file(app_client_real_bridge):
+    client, data_root = app_client_real_bridge
+    src = data_root / "photo.txt"
+    dst = data_root / "photo.jpg"
+    src.write_text("actually a jpeg")
+    dst.write_text("an unrelated file")
+
+    client.post(
+        "/api/operations",
+        json={"category": "bad_extensions", "op_type": "rename", "src_path": str(src), "dst_path": str(dst)},
+    )
+
+    report = client.post("/api/operations/apply", params={"category": "bad_extensions"}).json()
+    assert report[0]["status"] == "failed"
+    assert src.exists()
+    assert dst.read_text() == "an unrelated file"

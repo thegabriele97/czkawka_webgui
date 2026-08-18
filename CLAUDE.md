@@ -37,6 +37,9 @@ Defined by the `Envelope` enum in `bridge/src/output.rs` (`#[serde(tag = "type",
 
 - `{"type":"progress", "label", "all_progress", "current_progress", "current_progress_size"}` — emitted continuously
   from a dedicated thread draining a `crossbeam-channel` fed by `czkawka_core`'s progress callback.
+- `{"type":"messages", "messages", "warnings", "errors"}` — `czkawka_core`'s own `text_messages` (the files it had
+  to skip and why: a corrupted video ffprobe choked on, an unreadable folder, a missing ffmpeg). Emitted on its own
+  line **before** the final line, so a stopped scan still reports what it saw. Always emitted, even when empty.
 - `{"type":"result", "data"}` — final result, only on success.
 - `{"type":"error", "message"}` — final result, only on failure.
 - `{"type":"stopped"}` — final result when the process wound down because of a stop request (see below). Mutually
@@ -73,8 +76,9 @@ Scan statuses: `pending` (unused today, scans go straight to `running`) → `run
 
 ## Data model (`backend/app/models.py`)
 
-- `Scan` — one row per scan run. `directories`/`reference_directories`/`options`/`result` are JSON-encoded text
-  columns (SQLite, no native JSON needs). `options` records exactly what was passed to the bridge for that run.
+- `Scan` — one row per scan run. `directories`/`reference_directories`/`options`/`result`/`messages` are JSON-encoded
+  text columns (SQLite, no native JSON needs). `options` records exactly what was passed to the bridge for that run;
+  `messages` is the bridge's `messages` line (skipped files/warnings), set for `done` **and** `stopped` scans.
 - `ToolSettings` — one row per tool (`duplicates`/`similar_images`/`similar_videos`/`bad_extensions`), the
   last-used scan options, so the options form pre-fills instead of asking the user to re-enter them every time.
 - `FolderSelection` — a **single-row** table (`id` fixed at 1) holding the one globally-shared folder list (path +
@@ -84,8 +88,18 @@ Scan statuses: `pending` (unused today, scans go straight to `running`) → `run
   cross-device use. **If you're tempted to reach for `localStorage` for any piece of app state, don't** — it was
   already tried and explicitly rejected for exactly this reason; anything that should look the same from another
   device belongs in the DB behind a small router, following this same single-row pattern.
-- `PendingOperation` — a queued delete/hardlink action (one row per file decision), applied in a batch later via
-  `POST /api/operations/apply`. Deliberately best-effort per-row: one failure doesn't abort the batch.
+- `PendingOperation` — a queued delete/hardlink/rename action (one row per file decision), applied in a batch later
+  via `POST /api/operations/apply`. Deliberately best-effort per-row: one failure doesn't abort the batch.
+  `rename` is Bad Extensions' "use the extension the content implies" fix; `dst_path` is the target path, required
+  for `hardlink` and `rename` alike. The bridge refuses a rename whose target already exists rather than clobbering
+  an unrelated file (`bridge/src/actions.rs::run_rename_cmd`) — there's no `czkawka_core` helper for renaming, so
+  that guard is ours.
+
+Schema changes: `db.py::_add_missing_columns()` runs after `create_all` on every startup and `ALTER TABLE ... ADD
+COLUMN`s any **nullable** column a model declares but the table lacks. `create_all` only ever creates missing
+*tables*, and the `backend_db` volume outlives rebuilds, so without this a newly added column (like `Scan.messages`)
+would be missing forever on an already-deployed install. A NOT NULL column is deliberately skipped — that needs a
+real backfill decision, not a silent ALTER.
 
 ## API surface (all under `/api`, see `backend/app/routers/`)
 
@@ -112,7 +126,14 @@ duplicate ad hoc path checks elsewhere, route through this function instead.
   comparable groups with delete/hardlink decisions). Owns: the (collapsible, `<details>`-based) scan options form,
   start/stop, reattach-on-mount, and keyboard/preview navigation.
 - `pages/BadExtensionsPage.tsx` — separate, simpler page (flat list, not a compare-and-decide workflow), but mirrors
-  `ToolScanPage`'s start/stop/reattach lifecycle independently.
+  `ToolScanPage`'s start/stop/reattach lifecycle independently. Its one action is queueing a `rename` to
+  `proper_extension` (same folder, same base name, extension swapped) — it goes through the same
+  `PendingOperation` queue as every other destructive action, so it also shows up in the nav badge and the Pending
+  Queue page's category tabs.
+- `components/ScanWarnings.tsx` — collapsed `<details>` listing the bridge's `messages` line (warnings + errors),
+  shown on every tool page for `done`/`stopped` scans. Strips `DATA_ROOT` and the Unicode bidi isolates
+  `czkawka_core` wraps every path in (they render as stray boxes). The informational `messages` array is
+  deliberately not shown — it's mostly cache bookkeeping ("Properly saved to file N cache entries").
 - `pages/DuplicatesPage.tsx` / `SimilarImagesPage.tsx` / `SimilarVideosPage.tsx` — thin wrappers that just supply a
   `ToolConfig` to `ToolScanPage`.
 - `api/normalizeGroups.ts` — reshapes czkawka_core's per-tool JSON quirks (duplicates come back keyed by file size,
@@ -126,7 +147,10 @@ duplicate ad hoc path checks elsewhere, route through this function instead.
 - `components/ResultsTable.tsx` — renders groups as rows; keeps a `Map<path, <tr>>` ref registry and
   `scrollIntoView`s the selected row on selection change (keyboard or click), which is what makes arrow-key
   navigation and the sticky desktop preview panel work together.
-- `components/PreviewPanel.tsx` (inline, sticky on desktop) vs `components/PreviewOverlay.tsx` (full overlay on
+- `components/PreviewPanel.tsx` (inline, sticky on desktop — its grid cell needs `.preview-column { align-self:
+  stretch }`, since `.results-layout`'s `align-items: start` otherwise shrinks the cell to the panel's own height
+  and a `position: sticky` element can never travel outside its cell, which made the preview scroll off-screen on
+  long result lists) vs `components/PreviewOverlay.tsx` (full overlay on
   double-click, for actual playback). Mobile CSS switches the inline panel to `position: fixed` at the bottom
   (`@media (max-width: 720px)` in `index.css`) so it's reachable without scrolling past the whole results list.
 
@@ -176,11 +200,13 @@ instead. Follow the same pattern for any future upstream enum that needs to beco
 
 - **Bridge** (`bridge/`): `cargo test --release` (integration tests spawn the real built binary via
   `assert_cmd`/`CARGO_BIN_EXE_czkawka-bridge`). `bridge/tests/scan_stop.rs` sends a real `SIGTERM` mid-scan and
-  asserts a graceful `{"type":"stopped"}` line with no `result` line.
+  asserts a graceful `{"type":"stopped"}` line with no `result` line; `bridge/tests/rename.rs` covers the rename
+  action, including its refusal to overwrite an existing target.
 - **Backend** (`backend/`): `python -m pytest -q` (or bare `pytest -q` — `backend/pytest.ini` sets `pythonpath = .`
   so both work identically; this was a real CI break once, don't remove that file). Needs a real built bridge binary
-  at `TEST_BRIDGE_BIN` (see `conftest.py`) plus `ffmpeg` on PATH for video-related tests. 33 tests as of the last
-  session covering scans, stop/reattach/startup-sweep, settings persistence, folders CRUD, operations, browse, media.
+  at `TEST_BRIDGE_BIN` (see `conftest.py`) plus `ffmpeg` on PATH for video-related tests. 37 tests as of the last
+  session covering scans (including the czkawka messages payload), stop/reattach/startup-sweep, settings
+  persistence, folders CRUD, operations (delete/hardlink/rename), browse, media.
   `conftest.py`'s `app_client_slow_bridge` fixture is a **Python script**, not a shell script — it needs a real
   `signal.signal(SIGTERM, ...)` handler to interrupt `time.sleep()` and emit the stopped line; a shell/`sleep`-based
   fake bridge can't participate in the graceful-stop protocol and also risks orphaning the stdout pipe if the
