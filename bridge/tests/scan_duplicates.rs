@@ -62,3 +62,25 @@ fn does_not_flag_different_files_as_duplicates() {
         "non-duplicate file should not appear in results: {result_line}"
     );
 }
+
+/// Every scan reports czkawka_core's own messages (the files it skipped and
+/// why) on their own line before the final result line, so the backend can
+/// surface them even for a scan that found nothing.
+#[test]
+fn reports_czkawka_messages_before_the_result_line() {
+    let dir = tempfile::tempdir().expect("failed to create temp dir");
+    fs::write(dir.path().join("only.txt"), b"nothing to match").unwrap();
+
+    let output = bridge_cmd(dir.path())
+        .args(["scan", "--tool", "duplicates", "--dir"])
+        .arg(dir.path())
+        .output()
+        .expect("failed to run czkawka-bridge");
+
+    assert!(output.status.success(), "bridge exited with error: {}", String::from_utf8_lossy(&output.stderr));
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let messages_index = stdout.find("\"type\":\"messages\"").expect("expected a messages line");
+    let result_index = stdout.find("\"type\":\"result\"").expect("expected a result line");
+    assert!(messages_index < result_index, "messages must come before the final result line:\n{stdout}");
+}

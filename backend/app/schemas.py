@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 Tool = Literal["duplicates", "similar_images", "similar_videos", "bad_extensions"]
 Category = Tool
-OpType = Literal["delete", "hardlink"]
+OpType = Literal["delete", "hardlink", "rename"]
 HashAlg = Literal["mean", "median", "gradient", "vert-gradient", "double-gradient", "blockhash"]
 ResizeAlgorithm = Literal["nearest", "triangle", "catmull-rom", "gaussian", "lanczos3"]
 HashSize = Literal[8, 16, 32, 64]
@@ -37,6 +37,7 @@ class ScanOut(BaseModel):
     progress_label: str | None = None
     progress_all: int | None = None
     result: Any | None = None
+    messages: dict | None = None
     error_message: str | None = None
 
 

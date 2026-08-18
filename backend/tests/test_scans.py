@@ -81,3 +81,19 @@ def test_scan_rejects_unknown_tool(app_client):
         json={"tool": "not_a_real_tool", "directories": [str(data_root)]},
     )
     assert response.status_code == 422
+
+
+def test_scan_reports_czkawka_messages(app_client_real_bridge):
+    """The warnings/errors czkawka_core collected (skipped files and why)
+    are persisted alongside the result, so the UI can explain why a file
+    the user expected isn't in the results."""
+    client, data_root = app_client_real_bridge
+    folder = data_root / "library"
+    folder.mkdir()
+    (folder / "a.txt").write_text("x")
+
+    scan_id = client.post("/api/scans", json={"tool": "duplicates", "directories": [str(folder)]}).json()["id"]
+
+    body = _wait_for_scan(client, scan_id)
+    assert body["status"] == "done", body.get("error_message")
+    assert set(body["messages"]) == {"messages", "warnings", "errors"}
