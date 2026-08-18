@@ -23,6 +23,7 @@ def _to_out(scan: Scan) -> ScanOut:
         progress_label=scan.progress_label,
         progress_all=scan.progress_all,
         result=json.loads(scan.result) if scan.result else None,
+        messages=json.loads(scan.messages) if scan.messages else None,
         error_message=scan.error_message,
     )
 
@@ -112,10 +113,11 @@ def _run_scan_in_background(scan_id: int, tool: str, directories: list[str], ref
             db.commit()
 
         try:
-            result = bridge.run_scan(scan_id, tool, directories, reference_directories, options, on_progress)
-        except bridge.ScanStopped:
+            outcome = bridge.run_scan(scan_id, tool, directories, reference_directories, options, on_progress)
+        except bridge.ScanStopped as stopped:
             scan = db.get(Scan, scan_id)
             scan.status = "stopped"
+            scan.messages = json.dumps(stopped.messages)
             scan.finished_at = datetime.now(timezone.utc)
             db.commit()
             return
@@ -129,7 +131,8 @@ def _run_scan_in_background(scan_id: int, tool: str, directories: list[str], ref
 
         scan = db.get(Scan, scan_id)
         scan.status = "done"
-        scan.result = json.dumps(result)
+        scan.result = json.dumps(outcome.result)
+        scan.messages = json.dumps(outcome.messages)
         scan.finished_at = datetime.now(timezone.utc)
         db.commit()
     finally:

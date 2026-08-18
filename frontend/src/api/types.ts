@@ -50,6 +50,14 @@ export interface ToolSettingsOut {
 
 export type ScanStatus = "pending" | "running" | "done" | "error" | "stopped";
 
+/** What czkawka_core itself reported while scanning: the files it had to
+ * skip (corrupted video, unreadable folder, ...) alongside the results. */
+export interface ScanMessages {
+  messages: string[];
+  warnings: string[];
+  errors: string[];
+}
+
 export interface ScanOut {
   id: number;
   tool: string;
@@ -58,10 +66,11 @@ export interface ScanOut {
   progress_label: string | null;
   progress_all: number | null;
   result: unknown;
+  messages: ScanMessages | null;
   error_message: string | null;
 }
 
-export type OpType = "delete" | "hardlink";
+export type OpType = "delete" | "hardlink" | "rename";
 export type OpStatus = "pending" | "done" | "failed";
 
 export interface OperationCreate {

@@ -1,7 +1,7 @@
 import json
 import subprocess
 import threading
-from typing import Callable
+from typing import Any, Callable, NamedTuple
 
 from .config import BRIDGE_BIN
 
@@ -15,7 +15,19 @@ TOOL_CLI_NAMES = {
 
 class ScanStopped(Exception):
     """Raised out of run_scan when the process was terminated via stop_scan,
-    as opposed to failing on its own."""
+    as opposed to failing on its own. Carries whatever czkawka_core had
+    already reported - a stopped scan still has warnings worth showing."""
+
+    def __init__(self, messages: dict | None = None):
+        super().__init__("scan stopped")
+        self.messages = messages or {}
+
+
+class ScanOutcome(NamedTuple):
+    result: Any
+    # czkawka_core's own {messages, warnings, errors} - the files it skipped
+    # (corrupted video, unreadable folder, ...) alongside the real results.
+    messages: dict
 
 
 # Tracks the subprocess backing each in-progress scan so a later request can
@@ -96,9 +108,10 @@ def run_scan(
     on_progress: Callable[[str, int], None],
 ):
     """Runs the bridge scan subprocess to completion, calling `on_progress`
-    for every progress line, and returns the parsed final result payload.
-    Raises ScanStopped if stop_scan(scan_id) was called, or RuntimeError
-    with a human-readable message on any other failure.
+    for every progress line, and returns the parsed final result payload
+    plus czkawka_core's own messages. Raises ScanStopped if
+    stop_scan(scan_id) was called, or RuntimeError with a human-readable
+    message on any other failure.
     """
     cmd = _build_scan_command(tool, directories, reference_directories, options)
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -108,6 +121,7 @@ def run_scan(
 
     try:
         result = None
+        messages: dict = {}
         error = None
         stopped = False
         for raw_line in process.stdout:
@@ -121,6 +135,8 @@ def run_scan(
             line_type = payload.get("type")
             if line_type == "progress":
                 on_progress(payload.get("label", ""), payload.get("all_progress", -1))
+            elif line_type == "messages":
+                messages = {key: payload.get(key, []) for key in ("messages", "warnings", "errors")}
             elif line_type == "result":
                 result = payload.get("data")
             elif line_type == "error":
@@ -131,25 +147,29 @@ def run_scan(
         process.wait()
 
         if stopped:
-            raise ScanStopped()
+            raise ScanStopped(messages)
         if error is not None or process.returncode != 0:
             stderr = process.stderr.read() if process.stderr else ""
             raise RuntimeError(error or stderr or f"bridge exited with code {process.returncode}")
-        return result
+        return ScanOutcome(result=result, messages=messages)
     finally:
         with _process_lock:
             _running_processes.pop(scan_id, None)
 
 
 def run_action(op_type: str, src_path: str, dst_path: str | None) -> None:
-    """Runs a single hardlink/delete action via the bridge on one exact
-    path (or path pair). Raises RuntimeError with a human-readable message
+    """Runs a single hardlink/rename/delete action via the bridge on one
+    exact path (or path pair). Raises RuntimeError with a human-readable message
     on failure.
     """
     if op_type == "hardlink":
         if not dst_path:
             raise ValueError("hardlink operations require dst_path")
         cmd = [BRIDGE_BIN, "hardlink", src_path, dst_path]
+    elif op_type == "rename":
+        if not dst_path:
+            raise ValueError("rename operations require dst_path")
+        cmd = [BRIDGE_BIN, "rename", src_path, dst_path]
     elif op_type == "delete":
         cmd = [BRIDGE_BIN, "delete", src_path, "--trash"]
     else:

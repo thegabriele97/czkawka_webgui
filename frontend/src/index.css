@@ -362,6 +362,15 @@ button.danger:hover:not(:disabled) {
   min-width: 0;
 }
 
+/* The sticky preview can only travel inside its own grid cell, and
+   `align-items: start` above shrinks that cell to exactly the panel's
+   height - which is why the preview used to scroll off the top on a long
+   results list. Stretching just this column to the full row height gives
+   it the whole list to stay pinned against. */
+.preview-column {
+  align-self: stretch;
+}
+
 /* Many columns (up to 10 for similar-videos) don't all fit comfortably at
    once - columns are user-resizable (drag the handle on a header's right
    edge) so name/path can be shrunk to make room, and the table falls back
@@ -548,6 +557,11 @@ td.col-actions {
 .preview-panel {
   position: sticky;
   top: 3.5rem;
+  /* Never taller than what's left of the viewport below the sticky nav,
+     so a long path/large preview scrolls inside the panel instead of
+     pushing its own bottom half off-screen. */
+  max-height: calc(100vh - 4.5rem);
+  overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -641,6 +655,44 @@ td.col-actions {
 
 .bad-extensions-table tr:hover {
   background: var(--bg);
+}
+
+.bad-extensions-action {
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* --- scan warnings (files czkawka skipped) --- */
+
+.scan-messages {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.4rem 0.6rem;
+  margin-bottom: 0.7rem;
+  font-size: 0.8rem;
+}
+
+.scan-messages summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.scan-messages ul {
+  margin: 0.5rem 0 0.2rem;
+  padding-left: 1.1rem;
+  max-height: 16rem;
+  overflow-y: auto;
+}
+
+.scan-messages li {
+  color: var(--muted);
+  word-break: break-word;
+  margin-bottom: 0.3rem;
+}
+
+.scan-messages li.error {
+  color: var(--danger);
 }
 
 /* --- pending queue page --- */

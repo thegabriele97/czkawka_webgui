@@ -11,7 +11,7 @@ import { SimilarImagesPage } from "./pages/SimilarImagesPage";
 import { SimilarVideosPage } from "./pages/SimilarVideosPage";
 
 const NAV_ITEMS = [
-  { to: "/bad-extensions", label: "Bad Extensions", category: null },
+  { to: "/bad-extensions", label: "Bad Extensions", category: "bad_extensions" },
   { to: "/duplicates", label: "Duplicates", category: "duplicates" },
   { to: "/similar-images", label: "Similar Images", category: "similar_images" },
   { to: "/similar-videos", label: "Similar Videos", category: "similar_videos" },
@@ -70,8 +70,8 @@ export function App() {
         {location.pathname !== "/queue" && <FolderPanel folders={folders} onChange={setFolders} />}
 
         <Routes>
-          <Route path="/" element={<BadExtensionsPage folders={folders} />} />
-          <Route path="/bad-extensions" element={<BadExtensionsPage folders={folders} />} />
+          <Route path="/" element={<BadExtensionsPage folders={folders} onOperationsQueued={refreshCounts} />} />
+          <Route path="/bad-extensions" element={<BadExtensionsPage folders={folders} onOperationsQueued={refreshCounts} />} />
           <Route path="/duplicates" element={<DuplicatesPage folders={folders} onOperationsQueued={refreshCounts} />} />
           <Route path="/similar-images" element={<SimilarImagesPage folders={folders} onOperationsQueued={refreshCounts} />} />
           <Route path="/similar-videos" element={<SimilarVideosPage folders={folders} onOperationsQueued={refreshCounts} />} />

@@ -25,6 +25,9 @@ enum Command {
     Scan(ScanArgs),
     /// Hardlink `dst` to the same inode as `src`, replacing `dst`.
     Hardlink { src: PathBuf, dst: PathBuf },
+    /// Rename `src` to `dst` (same folder, new extension), refusing to
+    /// overwrite an existing `dst`.
+    Rename { src: PathBuf, dst: PathBuf },
     /// Delete (or trash) a single exact file.
     Delete {
         path: PathBuf,
@@ -48,6 +51,7 @@ fn main() -> ExitCode {
     let code = match cli.command {
         Command::Scan(args) => scan::run_scan(args),
         Command::Hardlink { src, dst } => actions::run_hardlink_cmd(&src, &dst),
+        Command::Rename { src, dst } => actions::run_rename_cmd(&src, &dst),
         Command::Delete { path, trash } => actions::run_delete_cmd(&path, trash),
     };
     ExitCode::from(code)
