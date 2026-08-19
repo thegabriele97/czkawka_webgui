@@ -120,8 +120,15 @@ duplicate ad hoc path checks elsewhere, route through this function instead.
 
 ## Frontend structure
 
-- `App.tsx` — top-level layout, nav, and the shared `folders` state (fetched/saved via `api.getFolders`/`saveFolders`,
-  no localStorage — see above).
+- `App.tsx` — top-level layout, nav (brand + tab links + theme toggle), and the shared `folders` state
+  (fetched/saved via `api.getFolders`/`saveFolders`, no localStorage — see above).
+- **Theme system** — two named themes, `daylight` (light) and `salvage` (dark), driven by `data-theme` on `<html>`.
+  `index.css` defines the full Daylight palette on `:root` and overrides only the tokens under
+  `:root[data-theme="salvage"]`; components read tokens only. `hooks/useTheme.ts` owns the ☀/☾ toggle and persists
+  the choice in **localStorage** — a deliberate, owner-approved exception to the no-localStorage rule, because the
+  theme is a per-device display preference, not shared app state (unlike folders). An inline script in `index.html`
+  applies the saved/`prefers-color-scheme` theme before first paint to avoid a flash. Fonts are Archivo (UI) +
+  JetBrains Mono (paths/sizes), loaded from Google Fonts in `index.html`.
 - `pages/ToolScanPage.tsx` — shared page for Duplicates/Similar Images/Similar Videos (anything that produces
   comparable groups with delete/hardlink decisions). Owns: the (collapsible, `<details>`-based) scan options form,
   start/stop, reattach-on-mount, and keyboard/preview navigation.
@@ -144,15 +151,27 @@ duplicate ad hoc path checks elsewhere, route through this function instead.
 - `api/navItems.ts` — flattens grouped results into one keyboard-navigable sequence with an explicit `gap` marker
   between groups (not after the last one), so ArrowUp/ArrowDown can pass through a deliberate "nothing selected"
   state at each group boundary instead of jumping straight from one group's last row to the next group's first row.
-- `components/ResultsTable.tsx` — renders groups as rows; keeps a `Map<path, <tr>>` ref registry and
-  `scrollIntoView`s the selected row on selection change (keyboard or click), which is what makes arrow-key
-  navigation and the sticky desktop preview panel work together.
+- `components/ResultsTable.tsx` — renders groups; keeps a `Map<path, HTMLElement>` ref registry and `scrollIntoView`s
+  the selected row on selection change (keyboard or click). Renders a **desktop table** or, below 720px
+  (`useMediaQuery`), a **mobile card list** (`Card`, `.results-cards`) with the same queue handlers — a phone never
+  scrolls a wide multi-column table sideways. **Column auto-fit**: the metadata columns and Folder are measured to
+  their widest actual value via a `<canvas>` (table cells don't report `scrollWidth` as content width, so measuring
+  the DOM is unreliable — measuring the text is not); the file name takes the leftover. Manual drag-resize still wins
+  per column. Each row carries a `MediaThumb` (click opens the overlay); a queued row gets a light green tint + edge
+  stripe (`.queued`), and the hardlink action is a compact chain-link icon in the desktop table.
+- `components/MediaThumb.tsx` — the results thumbnail (images direct, videos via `/api/media/thumbnail`, else a dash),
+  with the REF / suggested-keep (★) markers **overlaid on the thumbnail corners** rather than inline before the name,
+  so every file name in the column stays left-aligned. Clicking it opens `PreviewOverlay`.
+- `components/ReclaimSummary.tsx` — the "estimated space to reclaim" strip above the results (headline number + meter
+  + group/file counts). A labelled estimate: with a reference folder every member is freeable; without one it assumes
+  the largest copy is kept.
 - `components/PreviewPanel.tsx` (inline, sticky on desktop — its grid cell needs `.preview-column { align-self:
   stretch }`, since `.results-layout`'s `align-items: start` otherwise shrinks the cell to the panel's own height
   and a `position: sticky` element can never travel outside its cell, which made the preview scroll off-screen on
-  long result lists) vs `components/PreviewOverlay.tsx` (full overlay on
-  double-click, for actual playback). Mobile CSS switches the inline panel to `position: fixed` at the bottom
-  (`@media (max-width: 720px)` in `index.css`) so it's reachable without scrolling past the whole results list.
+  long result lists; clicking the preview opens the overlay) vs `components/PreviewOverlay.tsx` (full overlay on
+  thumbnail/preview click or row double-click, for actual playback). Mobile CSS switches the inline panel to
+  `position: fixed` at the bottom (`@media (max-width: 720px)` in `index.css`) so it's reachable without scrolling
+  past the whole results list.
 
 ## Advanced scan options
 
