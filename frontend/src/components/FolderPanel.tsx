@@ -54,7 +54,14 @@ export function FolderPanel({ folders, onChange }: FolderPanelProps) {
                   {displayPath(folder.path, dataRoot)}
                 </td>
                 <td>
-                  <input type="checkbox" checked={folder.isReference} onChange={() => toggleReference(folder.path)} />
+                  <button
+                    className={folder.isReference ? "ref-toggle on" : "ref-toggle"}
+                    onClick={() => toggleReference(folder.path)}
+                    aria-pressed={folder.isReference}
+                    title="Reference folders are scanned for matches but never modified"
+                  >
+                    Reference
+                  </button>
                 </td>
                 <td>
                   <button onClick={() => removeFolder(folder.path)}>remove</button>

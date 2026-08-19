@@ -69,7 +69,7 @@ export function PendingQueuePage({ onApplied }: { onApplied: () => void }) {
       <ul className="operation-list">
         {operations.map((op) => (
           <li key={op.id}>
-            <span className="op-type">{OP_TYPE_LABELS[op.op_type] ?? op.op_type}</span>
+            <span className={`op-type ${op.op_type}`}>{OP_TYPE_LABELS[op.op_type] ?? op.op_type}</span>
             <span className="op-src">{displayPath(op.src_path, dataRoot)}</span>
             {op.dst_path && (
               <>
