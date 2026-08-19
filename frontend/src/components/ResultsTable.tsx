@@ -2,8 +2,10 @@ import { Fragment, useEffect, useRef, useState, type MouseEvent as ReactMouseEve
 import { api } from "../api/client";
 import { useDataRoot } from "../api/DataRootContext";
 import { displayPath } from "../api/displayPath";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import { suggestBest } from "../api/suggestBest";
 import type { FileEntryLike, Group, Tool } from "../api/types";
+import { MediaThumb } from "./MediaThumb";
 
 /** Extra, tool-specific columns beyond the universal name/path/size/date -
  * the metadata czkawka_gui itself shows to help judge "which file is
@@ -12,10 +14,10 @@ import type { FileEntryLike, Group, Tool } from "../api/types";
 export type ExtraColumn = "resolution" | "bitrate" | "codec" | "duration" | "fps" | "difference";
 
 const EXTRA_COLUMN_LABELS: Record<ExtraColumn, string> = {
-  resolution: "Resolution",
+  resolution: "Res.",
   bitrate: "Bitrate",
   codec: "Codec",
-  duration: "Duration",
+  duration: "Length",
   fps: "FPS",
   difference: "Difference",
 };
@@ -37,12 +39,26 @@ const DEFAULT_WIDTHS: Record<ColumnKey, number> = {
 };
 
 const MIN_COLUMN_WIDTH = 36;
-// What fraction of the space left over after the fixed-width columns goes
-// to "name" vs. "path" when auto-fitting - path tends to need more room.
-const NAME_SHARE_OF_REMAINING = 0.4;
+// Upper bound and breathing room for the measure-to-content auto-fit, so one
+// freak-long value can't blow a column out. Folder (path) gets a roomier cap
+// than the short metadata columns.
+const AUTO_FIT_MAX = 200;
+const PATH_AUTO_FIT_MAX = 320;
+const AUTO_FIT_PADDING = 18;
 
 function baseName(path: string): string {
   return path.split("/").pop() ?? path;
+}
+
+/** Chain-link glyph for the hardlink action - far more compact than the word
+ * "Hardlink" in the tight actions column. */
+function LinkIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" />
+      <path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" />
+    </svg>
+  );
 }
 
 function dirName(path: string): string {
@@ -147,7 +163,7 @@ interface RowProps {
   selected: boolean;
   queued: QueuedInfo | undefined;
   dataRoot: string;
-  rowRef: (el: HTMLTableRowElement | null) => void;
+  rowRef: (el: HTMLElement | null) => void;
   onSelect: () => void;
   onOpen: () => void;
   onQueueDelete: () => void;
@@ -175,7 +191,7 @@ function Row({
   return (
     <tr
       ref={rowRef}
-      className={selected ? "selected" : ""}
+      className={`${selected ? "selected " : ""}${queued ? "queued" : ""}`.trim()}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
@@ -186,13 +202,8 @@ function Row({
       }}
     >
       <td className="col-name" title={entry.path} style={{ width: widths.name }}>
-        {isReference && <span className="ref-badge">REF</span>}
-        {bestReason && (
-          <span className="best-badge" title={`Suggested keep: ${bestReason}`}>
-            ★
-          </span>
-        )}
-        {baseName(entry.path)}
+        <MediaThumb path={entry.path} className="cell-thumb" isReference={isReference} bestReason={bestReason} onOpen={onOpen} />
+        <span className="name-text">{baseName(entry.path)}</span>
       </td>
       <td className="col-path" title={dirName(entry.path)} style={{ width: widths.path }}>
         {displayPath(dirName(entry.path), dataRoot)}
@@ -215,7 +226,9 @@ function Row({
           </button>
         )}
         {!isReference && !queued && hasReference && (
-          <button onClick={onQueueHardlink}>Hardlink</button>
+          <button className="icon-button" onClick={onQueueHardlink} title="Hardlink to the reference copy">
+            <LinkIcon />
+          </button>
         )}
         {queued && (
           <>
@@ -227,6 +240,67 @@ function Row({
         )}
       </td>
     </tr>
+  );
+}
+
+/** Mobile counterpart of Row: the same file rendered as a comfortable card
+ * (thumbnail, name, path, metadata chips, full-width actions) so a phone
+ * never has to scroll a wide multi-column table sideways. */
+function Card({
+  entry,
+  isReference,
+  hasReference,
+  bestReason,
+  extraColumns,
+  selected,
+  queued,
+  dataRoot,
+  rowRef,
+  onSelect,
+  onOpen,
+  onQueueDelete,
+  onQueueHardlink,
+  onUnqueue,
+}: RowProps) {
+  const chips = [
+    ...extraColumns.map((column) => extraColumnValue(column, entry)),
+    formatSize(entry.size as number | undefined),
+    formatDate(entry.modified_date as number | undefined),
+  ].filter(Boolean);
+
+  return (
+    <div ref={rowRef} className={`rcard${selected ? " selected" : ""}${queued ? " queued" : ""}`} onClick={onSelect} onDoubleClick={onOpen}>
+      <MediaThumb path={entry.path} className="rcard-thumb" isReference={isReference} bestReason={bestReason} onOpen={onOpen} />
+      <div className="rcard-main">
+        <div className="rcard-name" title={entry.path}>
+          {baseName(entry.path)}
+        </div>
+        <div className="rcard-path">{displayPath(dirName(entry.path), dataRoot)}</div>
+        <div className="rcard-meta">
+          {chips.map((value, index) => (
+            <span className="rchip" key={index}>
+              {value}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="rcard-actions" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+        {!isReference && !queued && (
+          <button className="danger" onClick={onQueueDelete}>
+            Delete
+          </button>
+        )}
+        {!isReference && !queued && hasReference && <button onClick={onQueueHardlink}>Hardlink</button>}
+        {queued && (
+          <>
+            <span className="queued-note">Queued</span>
+            <button className="unqueue-button" onClick={onUnqueue}>
+              Cancel
+            </button>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -258,7 +332,8 @@ export function ResultsTable({ category, groups, extraColumns, selectedPath, onS
   const [widths, setWidths] = useState<Record<ColumnKey, number>>(DEFAULT_WIDTHS);
   const containerRef = useRef<HTMLDivElement>(null);
   const manuallyResized = useRef<Set<ColumnKey>>(new Set());
-  const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
+  const rowRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const isNarrow = useMediaQuery("(max-width: 720px)");
   const dataRoot = useDataRoot();
 
   // Keeps the selected row in view as it changes - most useful for arrow-key
@@ -284,39 +359,77 @@ export function ResultsTable({ category, groups, extraColumns, selectedPath, onS
     };
   }, [category]);
 
-  // Name/path fill whatever room is left after the other (fixed-width)
-  // columns, by default - so everything is visible without a manual resize
-  // or horizontal scroll on a typical screen. Once you drag either of them
-  // by hand, this stops touching that column.
+  // Auto-fit: measure each metadata column to its widest actual value (and
+  // its header) with a canvas - table cells don't report scrollWidth as
+  // content width, so measuring the rendered DOM is unreliable; measuring
+  // the text directly is not. name/path then share whatever room is left, so
+  // a typical screen shows everything without a manual resize or sideways
+  // scroll. A column dragged by hand is left exactly as the user set it.
   useEffect(() => {
-    function fitNameAndPath() {
-      if (manuallyResized.current.has("name") && manuallyResized.current.has("path")) return;
-      const container = containerRef.current;
-      if (!container) return;
+    const container = containerRef.current;
+    const ctx = document.createElement("canvas").getContext("2d");
+    if (!container || !ctx) return;
 
-      const fixedWidth = columns.filter((c) => c !== "name" && c !== "path").reduce((sum, c) => sum + DEFAULT_WIDTHS[c], 0);
-      const available = container.clientWidth - fixedWidth - 4;
-      if (available < MIN_COLUMN_WIDTH * 2) return;
+    const allEntries = groups.flatMap((g) => (g.reference ? [g.reference, ...g.members] : g.members));
+    const CELL_FONT = '13px "Archivo", system-ui, sans-serif';
+    const MONO_FONT = '12px "JetBrains Mono", monospace';
+    const HEAD_FONT = '600 11px "Archivo", system-ui, sans-serif';
+
+    // Columns whose content is plain text we can measure. "path" (folder) is
+    // measured too but capped higher; "name" flexes into whatever is left,
+    // and "actions" holds buttons so it keeps its default width.
+    const fitColumns: ColumnKey[] = [...extraColumns, "size", "date"];
+    const headerLabel: Record<string, string> = { ...EXTRA_COLUMN_LABELS, size: "Size", date: "Modified" };
+    const valueFor = (col: ColumnKey, entry: FileEntryLike): string => {
+      if (col === "size") return formatSize(entry.size as number | undefined);
+      if (col === "date") return formatDate(entry.modified_date as number | undefined);
+      return extraColumnValue(col as ExtraColumn, entry);
+    };
+
+    function measure(font: string, text: string): number {
+      ctx!.font = font;
+      return ctx!.measureText(text).width;
+    }
+
+    function autoFit() {
+      if (!container || !ctx) return;
+      const measured: Partial<Record<ColumnKey, number>> = {};
+      for (const col of fitColumns) {
+        if (manuallyResized.current.has(col)) continue;
+        let max = measure(HEAD_FONT, headerLabel[col] ?? "") + 12; // room for the resize handle
+        for (const entry of allEntries) max = Math.max(max, measure(CELL_FONT, valueFor(col, entry)));
+        measured[col] = Math.min(AUTO_FIT_MAX, Math.max(MIN_COLUMN_WIDTH, Math.ceil(max) + AUTO_FIT_PADDING));
+      }
+      if (!manuallyResized.current.has("path")) {
+        let max = measure(HEAD_FONT, "Folder") + 12;
+        for (const entry of allEntries) max = Math.max(max, measure(MONO_FONT, displayPath(dirName(entry.path), dataRoot)));
+        measured.path = Math.min(PATH_AUTO_FIT_MAX, Math.max(MIN_COLUMN_WIDTH, Math.ceil(max) + AUTO_FIT_PADDING));
+      }
+      if (!manuallyResized.current.has("actions")) {
+        // Two compact icon buttons, or the wider "Queued / Cancel" state -
+        // size to the largest so the column doesn't jump when you queue a row.
+        const header = measure(HEAD_FONT, "Actions") + 12;
+        const icons = 64;
+        const queuedState = Math.ceil(measure(CELL_FONT, "Queued") + measure(CELL_FONT, "Cancel")) + 44;
+        measured.actions = Math.max(MIN_COLUMN_WIDTH, header, icons, queuedState);
+      }
 
       setWidths((prev) => {
-        const next = { ...prev };
-        if (!manuallyResized.current.has("name") && !manuallyResized.current.has("path")) {
-          next.name = Math.max(MIN_COLUMN_WIDTH, Math.round(available * NAME_SHARE_OF_REMAINING));
-          next.path = Math.max(MIN_COLUMN_WIDTH, available - next.name);
-        } else if (!manuallyResized.current.has("name")) {
-          next.name = Math.max(MIN_COLUMN_WIDTH, available - prev.path);
-        } else if (!manuallyResized.current.has("path")) {
-          next.path = Math.max(MIN_COLUMN_WIDTH, available - prev.name);
+        const next = { ...prev, ...measured };
+        // The file name takes everything left over - it's what you read most,
+        // and long names ellipsize gracefully.
+        if (!manuallyResized.current.has("name")) {
+          const rest = columns.filter((c) => c !== "name").reduce((sum, c) => sum + next[c], 0);
+          next.name = Math.max(MIN_COLUMN_WIDTH, container.clientWidth - rest - 4);
         }
         return next;
       });
     }
 
-    fitNameAndPath();
-    window.addEventListener("resize", fitNameAndPath);
-    return () => window.removeEventListener("resize", fitNameAndPath);
-    // Deliberately only on mount + window resize: columns is fixed for the
-    // lifetime of this component (one scan's worth of results).
+    autoFit();
+    window.addEventListener("resize", autoFit);
+    return () => window.removeEventListener("resize", autoFit);
+    // Runs on mount (one scan's worth of results) and on window resize.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -347,6 +460,71 @@ export function ResultsTable({ category, groups, extraColumns, selectedPath, onS
       return next;
     });
     onQueued();
+  }
+
+  if (isNarrow) {
+    return (
+      <div className="results-cards">
+        {groups.map((group, groupIndex) => {
+          const allEntries = group.reference ? [group.reference, ...group.members] : group.members;
+          const best = suggestBest(allEntries);
+
+          return (
+            <Fragment key={groupIndex}>
+              <div className="result-group-head">
+                <span>Group {groupIndex + 1}</span>
+              </div>
+              {group.reference && (
+                <Card
+                  key={group.reference.path}
+                  entry={group.reference}
+                  isReference
+                  hasReference
+                  bestReason={best?.path === group.reference.path ? best.reason : undefined}
+                  extraColumns={extraColumns}
+                  widths={widths}
+                  selected={selectedPath === group.reference.path}
+                  queued={undefined}
+                  dataRoot={dataRoot}
+                  rowRef={(el) => {
+                    if (el) rowRefs.current.set(group.reference!.path, el);
+                    else rowRefs.current.delete(group.reference!.path);
+                  }}
+                  onSelect={() => onSelect(group.reference!)}
+                  onOpen={() => onOpen(group.reference!)}
+                  onQueueDelete={() => undefined}
+                  onQueueHardlink={() => undefined}
+                  onUnqueue={() => undefined}
+                />
+              )}
+              {group.members.map((entry) => (
+                <Card
+                  key={entry.path}
+                  entry={entry}
+                  isReference={false}
+                  hasReference={!!group.reference}
+                  bestReason={best?.path === entry.path ? best.reason : undefined}
+                  extraColumns={extraColumns}
+                  widths={widths}
+                  selected={selectedPath === entry.path}
+                  queued={queuedByPath[entry.path]}
+                  dataRoot={dataRoot}
+                  rowRef={(el) => {
+                    if (el) rowRefs.current.set(entry.path, el);
+                    else rowRefs.current.delete(entry.path);
+                  }}
+                  onSelect={() => onSelect(entry)}
+                  onOpen={() => onOpen(entry)}
+                  onQueueDelete={() => queueDelete(entry)}
+                  onQueueHardlink={() => (group.reference ? queueHardlinkToReference(group.reference, entry) : undefined)}
+                  onUnqueue={() => unqueue(entry.path)}
+                />
+              ))}
+            </Fragment>
+          );
+        })}
+      </div>
+    );
   }
 
   return (

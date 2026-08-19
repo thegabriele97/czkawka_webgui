@@ -6,6 +6,7 @@ import type { FileEntryLike, FolderEntry, HashAlg, HashSize, ResizeAlgorithm, Sc
 import { PreviewOverlay } from "../components/PreviewOverlay";
 import { PreviewPanel } from "../components/PreviewPanel";
 import { ProgressBar } from "../components/ProgressBar";
+import { ReclaimSummary } from "../components/ReclaimSummary";
 import { ScanWarnings } from "../components/ScanWarnings";
 import { ResultsTable, type ExtraColumn } from "../components/ResultsTable";
 
@@ -274,6 +275,8 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
       {scan?.status === "stopped" && <p className="hint">Scan stopped.</p>}
       {(scan?.status === "done" || scan?.status === "stopped") && <ScanWarnings messages={scan.messages} />}
 
+      {scan?.status === "done" && <ReclaimSummary groups={groups} />}
+
       {scan?.status === "done" && (
         <section className="results-layout" onClick={clearSelection}>
           <div className={selected ? "results-list has-preview" : "results-list"}>
@@ -292,7 +295,7 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
             )}
           </div>
           <div className="preview-column" onClick={(e) => e.stopPropagation()}>
-            <PreviewPanel entry={selected} />
+            <PreviewPanel entry={selected} onOpen={setOpened} />
           </div>
         </section>
       )}
