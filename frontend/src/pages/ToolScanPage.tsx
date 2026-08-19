@@ -163,6 +163,20 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
     setSelected(item.kind === "entry" ? item.entry : null);
   }
 
+  // The overlay walks only real entries (no group gaps - on mobile a blank
+  // beat between groups is just friction), keeping `selected` in sync so the
+  // desktop panel follows along.
+  const openedEntries = opened ? buildNavItems(groups).flatMap((i) => (i.kind === "entry" ? [i.entry] : [])) : [];
+  const openedIndex = opened ? openedEntries.findIndex((e) => e.path === opened.path) : -1;
+
+  function moveOpened(delta: number) {
+    const next = openedIndex + delta;
+    if (openedIndex === -1 || next < 0 || next >= openedEntries.length) return;
+    const entry = openedEntries[next];
+    setOpened(entry);
+    selectRow(entry);
+  }
+
   // Arrow-key navigation between rows (and the gap between groups, which
   // briefly clears the preview) - only while there's something to navigate,
   // and not while the user is typing into a form control elsewhere on the
@@ -300,7 +314,14 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
         </section>
       )}
 
-      {opened && <PreviewOverlay entry={opened} onClose={() => setOpened(null)} />}
+      {opened && (
+        <PreviewOverlay
+          entry={opened}
+          onClose={() => setOpened(null)}
+          onPrev={openedIndex > 0 ? () => moveOpened(-1) : null}
+          onNext={openedIndex !== -1 && openedIndex < openedEntries.length - 1 ? () => moveOpened(1) : null}
+        />
+      )}
     </div>
   );
 }
