@@ -1074,11 +1074,59 @@ td.col-actions {
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
 }
 
+.preview-overlay-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
 .preview-overlay-media {
   max-width: 100%;
   max-height: 75vh;
   border-radius: var(--radius-sm);
   background: #000;
+}
+
+.preview-overlay-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  font-size: 1.7rem;
+  line-height: 1;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  opacity: 0.82;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.preview-overlay-nav:hover {
+  opacity: 1;
+}
+
+.preview-overlay-nav.prev {
+  left: 0.4rem;
+}
+
+.preview-overlay-nav.next {
+  right: 0.4rem;
+}
+
+@media (max-width: 720px) {
+  .preview-overlay-nav {
+    width: 3.2rem;
+    height: 3.2rem;
+    font-size: 2rem;
+  }
 }
 
 /* --- bad extensions (flat, read-only table) --- */
