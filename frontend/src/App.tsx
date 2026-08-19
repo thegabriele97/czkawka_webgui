@@ -4,6 +4,7 @@ import { api } from "./api/client";
 import type { FolderEntry } from "./api/types";
 import { FolderPanel } from "./components/FolderPanel";
 import { PendingBadge } from "./components/PendingBadge";
+import { useTheme } from "./hooks/useTheme";
 import { BadExtensionsPage } from "./pages/BadExtensionsPage";
 import { DuplicatesPage } from "./pages/DuplicatesPage";
 import { PendingQueuePage } from "./pages/PendingQueuePage";
@@ -27,6 +28,7 @@ export function App() {
   const [folders, setFolders] = useState<FolderEntry[]>([]);
   const [foldersLoaded, setFoldersLoaded] = useState(false);
   const location = useLocation();
+  const { theme, toggle } = useTheme();
 
   useEffect(() => {
     api
@@ -58,12 +60,28 @@ export function App() {
   return (
     <div className="app">
       <nav className="nav">
-        {NAV_ITEMS.map((item) => (
-          <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? "active" : "")}>
-            {item.label}
-            {item.category && <PendingBadge count={counts[item.category]} />}
-          </NavLink>
-        ))}
+        <div className="nav-brand">
+          <span className="nav-mark">cz</span>
+          <span className="nav-name">
+            czkawka<em>duplicate &amp; junk finder</em>
+          </span>
+        </div>
+        <div className="nav-links">
+          {NAV_ITEMS.map((item) => (
+            <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? "active" : "")}>
+              {item.label}
+              {item.category && <PendingBadge count={counts[item.category]} />}
+            </NavLink>
+          ))}
+        </div>
+        <button
+          className="theme-toggle"
+          onClick={toggle}
+          aria-label={theme === "salvage" ? "Switch to light theme" : "Switch to dark theme"}
+          title={theme === "salvage" ? "Daylight (light)" : "Salvage (dark)"}
+        >
+          {theme === "salvage" ? "☾" : "☀"}
+        </button>
       </nav>
 
       <main className="content">

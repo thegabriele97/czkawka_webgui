@@ -1,40 +1,64 @@
-:root {
-  color-scheme: light dark;
-  --bg: #f4f5f8;
+/* ==========================================================================
+   czkawka Web GUI — two themes (Daylight / Salvage) driven by
+   data-theme on <html>. Daylight is the :root default; Salvage overrides
+   the tokens. Components only ever read tokens, never literal colors, so a
+   theme swap is a pure token change.
+   ========================================================================== */
+
+:root,
+:root[data-theme="daylight"] {
+  --bg: #f7f6f3;
   --surface: #ffffff;
-  --surface-alt: #f7f7fb;
-  --fg: #1c1e26;
-  --muted: #6b7080;
-  --border: #e4e5ec;
-  --accent: #4f46e5;
-  --accent-soft: #eef0fd;
-  --accent-fg: #ffffff;
-  --danger: #dc2626;
-  --danger-soft: #fdecec;
-  --ok: #16a34a;
-  --suggest: #b45309;
-  --suggest-soft: #fef3e2;
-  --radius: 8px;
-  --shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 3px rgba(16, 24, 40, 0.06);
-  font-family: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+  --surface-2: #f2f1ec;
+  --fg: #20221c;
+  --muted: #76786e;
+  --border: #e5e3da;
+  --hairline: #eeece5;
+  --accent: #3b6b4c;
+  --accent-fg: #fbfdf9;
+  --accent-soft: #e6efe7;
+  --danger: #c0392b;
+  --danger-soft: #f7e6e2;
+  --ok: #2f7d4f;
+  --ok-soft: #e4f0e6;
+  --ref: #2f6f8f;
+  --ref-soft: #e2eef2;
+  --best: #a8781f;
+  --best-soft: #f4ebd6;
+  --scan: #2f6f8f;
+  --shadow: 0 1px 2px rgba(30, 34, 24, 0.05), 0 6px 18px rgba(30, 34, 24, 0.06);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f1013;
-    --surface: #18191d;
-    --surface-alt: #202126;
-    --fg: #eef0f3;
-    --muted: #8b909b;
-    --border: #2b2d33;
-    --accent: #818cf8;
-    --accent-soft: #262a45;
-    --accent-fg: #0b0c10;
-    --danger-soft: #3a1f22;
-    --suggest: #fbbf24;
-    --suggest-soft: #3a2f0f;
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
-  }
+:root[data-theme="salvage"] {
+  --bg: #0f1319;
+  --surface: #161b23;
+  --surface-2: #1c222c;
+  --fg: #e7ecf3;
+  --muted: #8a93a3;
+  --border: #252c37;
+  --hairline: #20262f;
+  --accent: #f0a52b;
+  --accent-fg: #141414;
+  --accent-soft: #2a2312;
+  --danger: #f0603f;
+  --danger-soft: #2c1a17;
+  --ok: #39c07a;
+  --ok-soft: #12271e;
+  --ref: #4aa8ff;
+  --ref-soft: #10233a;
+  --best: #f0a52b;
+  --best-soft: #2a2312;
+  --scan: #39c8c8;
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+:root {
+  --radius: 12px;
+  --radius-sm: 8px;
+  --font-ui: "Archivo", -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+  color-scheme: light dark;
+  font-family: var(--font-ui);
 }
 
 * {
@@ -46,37 +70,53 @@ body {
   background: var(--bg);
   color: var(--fg);
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
 }
 
 h2,
 h3,
 h4 {
-  font-weight: 600;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  letter-spacing: -0.01em;
   margin: 0 0 0.5rem;
 }
 
 h2 {
-  font-size: 1.15rem;
+  font-size: 1.2rem;
 }
 
 h3 {
   font-size: 0.95rem;
 }
 
+/* --- buttons --- */
+
 button {
   cursor: pointer;
+  font: inherit;
+  font-weight: 600;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--fg);
-  border-radius: 6px;
-  padding: 0.32rem 0.7rem;
+  border-radius: var(--radius-sm);
+  padding: 0.38rem 0.75rem;
   font-size: 0.8rem;
-  transition: background 0.15s ease, border-color 0.15s ease, filter 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, filter 0.15s ease, transform 0.05s ease;
 }
 
 button:hover:not(:disabled) {
   border-color: var(--accent);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 button:disabled {
@@ -88,16 +128,16 @@ button.primary {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-fg);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 button.primary:hover:not(:disabled) {
-  filter: brightness(1.1);
+  filter: brightness(1.07);
 }
 
 button.danger {
   color: var(--danger);
-  border-color: var(--danger-soft);
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
 }
 
 button.danger:hover:not(:disabled) {
@@ -115,9 +155,9 @@ button.danger:hover:not(:disabled) {
 
 .nav {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.2rem;
-  padding: 0.5rem 0.85rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.9rem;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   box-shadow: var(--shadow);
@@ -126,17 +166,70 @@ button.danger:hover:not(:disabled) {
   z-index: 5;
 }
 
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex: none;
+}
+
+.nav-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
+:root[data-theme="salvage"] .nav-mark {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent), 0 0 18px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.nav-name {
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.nav-name em {
+  display: block;
+  font-style: normal;
+  font-weight: 500;
+  font-size: 0.68rem;
+  color: var(--muted);
+  letter-spacing: 0;
+}
+
+.nav-links {
+  display: flex;
+  gap: 0.15rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-left: auto;
+}
+
+.nav-links::-webkit-scrollbar {
+  display: none;
+}
+
 .nav a {
+  white-space: nowrap;
   color: var(--muted);
   text-decoration: none;
   padding: 0.4rem 0.7rem;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  font-weight: 500;
+  border-radius: 999px;
+  font-size: 0.83rem;
+  font-weight: 600;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .nav a:hover {
-  background: var(--bg);
+  background: var(--surface-2);
   color: var(--fg);
 }
 
@@ -145,24 +238,38 @@ button.danger:hover:not(:disabled) {
   color: var(--accent-fg);
 }
 
+.theme-toggle {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 1rem;
+  display: grid;
+  place-items: center;
+}
+
 .content {
   flex: 1;
-  padding: 0.85rem;
+  padding: 0.9rem;
   max-width: 1300px;
   width: 100%;
   margin: 0 auto;
 }
 
 .badge {
-  display: inline-block;
+  display: inline-grid;
+  place-items: center;
   min-width: 1.2em;
+  height: 1.2em;
   padding: 0 0.35em;
   margin-left: 0.4em;
   background: var(--danger);
-  color: white;
+  color: #fff;
   border-radius: 999px;
-  font-size: 0.7em;
-  text-align: center;
+  font-size: 0.66em;
+  font-weight: 700;
   vertical-align: middle;
 }
 
@@ -176,11 +283,106 @@ button.danger:hover:not(:disabled) {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 0.7rem 0.85rem;
-  margin-bottom: 0.7rem;
+  padding: 0.8rem 0.9rem;
+  margin-bottom: 0.8rem;
 }
 
-/* --- folder panel (global, shared across every tab) --- */
+/* --- reclaim summary (signature) --- */
+
+.reclaim {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem 1.6rem;
+  align-items: center;
+  padding: 1rem 1.15rem;
+  margin-bottom: 0.8rem;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+:root[data-theme="salvage"] .reclaim {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, var(--surface)), var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+}
+
+.reclaim-lead {
+  min-width: 0;
+}
+
+.reclaim-kicker {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 0 0 0.3rem;
+}
+
+.reclaim-num {
+  font-weight: 800;
+  font-size: clamp(1.7rem, 5vw, 2.6rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+}
+
+:root[data-theme="salvage"] .reclaim-num {
+  text-shadow: 0 0 24px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.reclaim-sub {
+  color: var(--muted);
+  font-size: 0.84rem;
+  margin: 0.5rem 0 0;
+}
+
+.reclaim-sub b {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.reclaim-meter {
+  margin-top: 0.75rem;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.reclaim-meter i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.reclaim-stats {
+  display: flex;
+  gap: 1.4rem;
+}
+
+.reclaim-stats .stat {
+  text-align: right;
+}
+
+.reclaim-stats .v {
+  font-weight: 700;
+  font-size: 1.35rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.reclaim-stats .k {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-top: 0.3rem;
+}
+
+/* --- folder panel --- */
 
 .folder-panel-header {
   display: flex;
@@ -208,17 +410,17 @@ button.danger:hover:not(:disabled) {
 .folder-table th {
   text-align: left;
   color: var(--muted);
-  font-weight: 500;
-  font-size: 0.72rem;
+  font-weight: 600;
+  font-size: 0.68rem;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.05em;
   padding: 0.25rem 0.45rem;
   border-bottom: 1px solid var(--border);
 }
 
 .folder-table td {
-  padding: 0.3rem 0.45rem;
-  border-bottom: 1px solid var(--border);
+  padding: 0.35rem 0.45rem;
+  border-bottom: 1px solid var(--hairline);
   vertical-align: middle;
 }
 
@@ -227,9 +429,46 @@ button.danger:hover:not(:disabled) {
 }
 
 .folder-path {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   word-break: break-all;
+}
+
+/* reference toggle pill (replaces the bare checkbox) */
+.ref-toggle {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.ref-toggle::before {
+  content: "○";
+  font-size: 0.9em;
+}
+
+.ref-toggle:hover:not(:disabled) {
+  border-color: var(--ref);
+  color: var(--ref);
+}
+
+.ref-toggle.on {
+  background: var(--ref-soft);
+  border-color: color-mix(in srgb, var(--ref) 45%, transparent);
+  color: var(--ref);
+}
+
+.ref-toggle.on::before {
+  content: "✓";
 }
 
 /* --- scan controls / options --- */
@@ -246,20 +485,28 @@ button.danger:hover:not(:disabled) {
   align-items: center;
   gap: 0.35rem;
   font-size: 0.8rem;
+  color: var(--muted);
 }
 
 .option input,
 .option select {
   width: 4rem;
-  padding: 0.2rem 0.35rem;
+  padding: 0.24rem 0.4rem;
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: var(--bg);
   color: var(--fg);
+  font: inherit;
+  font-size: 0.8rem;
 }
 
 .option select {
   width: auto;
+}
+
+.option input[type="checkbox"] {
+  width: auto;
+  accent-color: var(--accent);
 }
 
 .options-menu {
@@ -281,10 +528,6 @@ button.danger:hover:not(:disabled) {
   align-items: center;
   gap: 0.6rem;
   padding: 0.4rem 0 0.75rem;
-}
-
-.option input[type="checkbox"] {
-  width: auto;
 }
 
 .hint {
@@ -331,7 +574,7 @@ button.danger:hover:not(:disabled) {
 }
 
 .progress-track {
-  background: var(--border);
+  background: var(--surface-2);
   border-radius: 999px;
   height: 6px;
   overflow: hidden;
@@ -349,12 +592,12 @@ button.danger:hover:not(:disabled) {
   color: var(--muted);
 }
 
-/* --- results: two-column layout (single table + sticky preview) --- */
+/* --- results: two-column layout (table + sticky preview) --- */
 
 .results-layout {
   display: grid;
-  grid-template-columns: 1fr 260px;
-  gap: 0.75rem;
+  grid-template-columns: 1fr 264px;
+  gap: 0.8rem;
   align-items: start;
 }
 
@@ -362,21 +605,13 @@ button.danger:hover:not(:disabled) {
   min-width: 0;
 }
 
-/* The sticky preview can only travel inside its own grid cell, and
-   `align-items: start` above shrinks that cell to exactly the panel's
-   height - which is why the preview used to scroll off the top on a long
-   results list. Stretching just this column to the full row height gives
-   it the whole list to stay pinned against. */
+/* The sticky preview can only travel inside its own grid cell; stretching
+   this column to the full row height gives it the whole list to stay
+   pinned against. */
 .preview-column {
   align-self: stretch;
 }
 
-/* Many columns (up to 10 for similar-videos) don't all fit comfortably at
-   once - columns are user-resizable (drag the handle on a header's right
-   edge) so name/path can be shrunk to make room, and the table falls back
-   to horizontal scroll if it still needs more room than the panel has.
-   Alignment across groups still holds: it's one <table>, so column widths
-   are computed once for every row. */
 .table-scroll {
   overflow-x: auto;
 }
@@ -386,19 +621,19 @@ button.danger:hover:not(:disabled) {
   border-collapse: collapse;
   font-size: 0.82rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 
 .group-table th {
   position: relative;
   text-align: left;
-  background: var(--surface-alt);
+  background: var(--surface-2);
   color: var(--muted);
-  font-weight: 500;
-  font-size: 0.7rem;
+  font-weight: 600;
+  font-size: 0.68rem;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  padding: 0.35rem 0.5rem;
+  letter-spacing: 0.04em;
+  padding: 0.4rem 0.5rem;
   border-bottom: 1px solid var(--border);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -422,8 +657,8 @@ button.danger:hover:not(:disabled) {
 }
 
 .group-table td {
-  padding: 0.3rem 0.5rem;
-  border-bottom: 1px solid var(--border);
+  padding: 0.34rem 0.5rem;
+  border-bottom: 1px solid var(--hairline);
   vertical-align: middle;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -439,7 +674,22 @@ button.danger:hover:not(:disabled) {
 }
 
 .group-table tbody tr:not(.group-separator):hover {
-  background: var(--bg);
+  background: var(--surface-2);
+}
+
+/* A file queued for an operation gets a light tint + a green edge stripe, so
+   it reads as "scheduled" at a glance, not only via the "Queued" label.
+   Placed before the .selected rules so an actively selected row still wins. */
+.group-table tbody tr.queued {
+  background: color-mix(in srgb, var(--ok) 9%, var(--surface));
+}
+
+.group-table tbody tr.queued td:first-child {
+  box-shadow: inset 3px 0 0 var(--ok);
+}
+
+.group-table tbody tr.queued td.col-actions {
+  background: color-mix(in srgb, var(--ok) 9%, var(--surface));
 }
 
 .group-table tbody tr.selected {
@@ -447,24 +697,100 @@ button.danger:hover:not(:disabled) {
 }
 
 .group-separator td {
-  background: var(--surface-alt);
+  background: var(--surface-2);
   color: var(--muted);
   font-size: 0.68rem;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 0.25rem 0.5rem;
+  padding: 0.28rem 0.5rem;
 }
 
-/* Column widths themselves are set inline from React state (drag-resize) -
-   these rules are just per-column visual styling. */
 .col-name {
-  font-weight: 500;
+  font-weight: 600;
+}
+
+/* preview thumbnail (shared by table cell and mobile card) with the REF /
+   suggested-keep markers overlaid on the corners, so they never push the
+   file name out of alignment. */
+.thumb {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  vertical-align: middle;
+  cursor: zoom-in;
+}
+
+.thumb > img,
+.thumb > .thumb-none {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  display: block;
+}
+
+.thumb > .thumb-none {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.thumb:hover {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.thumb-ref {
+  position: absolute;
+  left: 2px;
+  bottom: 2px;
+  background: var(--ref);
+  color: #fff;
+  font-size: 0.48rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  padding: 2px 3px;
+  border-radius: 3px;
+  pointer-events: none;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.45);
+}
+
+.thumb-star {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--best);
+  color: #1c1300;
+  font-size: 0.58rem;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
+}
+
+.cell-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 7px;
+  margin-right: 0.55rem;
+}
+
+.name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .col-path {
   color: var(--muted);
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.76rem;
 }
 
@@ -473,14 +799,13 @@ button.danger:hover:not(:disabled) {
 .col-codec,
 .col-duration,
 .col-fps,
-.col-difference {
+.col-difference,
+.col-size,
+.col-date {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 
-/* Pinned to the right edge of the scroll area so it's always reachable
-   without swiping all the way across a wide table - matters most on a
-   narrow phone screen with many columns. */
 .col-actions {
   white-space: nowrap;
   display: flex;
@@ -489,11 +814,11 @@ button.danger:hover:not(:disabled) {
   position: sticky;
   right: 0;
   z-index: 1;
-  box-shadow: -2px 0 4px rgba(16, 24, 40, 0.08);
+  box-shadow: -2px 0 4px rgba(0, 0, 0, 0.08);
 }
 
 th.col-actions {
-  background: var(--surface-alt);
+  background: var(--surface-2);
 }
 
 td.col-actions {
@@ -501,7 +826,7 @@ td.col-actions {
 }
 
 .group-table tbody tr:not(.group-separator):hover td.col-actions {
-  background: var(--bg);
+  background: var(--surface-2);
 }
 
 .group-table tbody tr.selected td.col-actions {
@@ -509,15 +834,22 @@ td.col-actions {
 }
 
 .icon-button {
-  padding: 0.2rem 0.4rem;
+  padding: 0.32rem 0.45rem;
   line-height: 1;
   font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-button svg {
+  display: block;
 }
 
 .ref-badge {
   display: inline-block;
-  background: var(--accent);
-  color: var(--accent-fg);
+  background: var(--ref);
+  color: #fff;
   font-size: 0.62rem;
   font-weight: 700;
   border-radius: 4px;
@@ -526,16 +858,14 @@ td.col-actions {
   letter-spacing: 0.03em;
 }
 
-/* Mild, best-effort hint (technical metadata only, not a verdict) about
- * which file in a group is probably worth keeping. */
 .best-badge {
   display: inline-block;
-  background: var(--suggest-soft);
-  color: var(--suggest);
+  background: var(--best-soft);
+  color: var(--best);
   font-size: 0.68rem;
   font-weight: 700;
   border-radius: 4px;
-  padding: 0.05rem 0.22rem;
+  padding: 0.05rem 0.28rem;
   margin-right: 0.3rem;
   cursor: help;
 }
@@ -543,6 +873,7 @@ td.col-actions {
 .queued-note {
   color: var(--ok);
   font-size: 0.74rem;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -552,14 +883,129 @@ td.col-actions {
   color: var(--muted);
 }
 
+/* --- results: mobile card list (replaces the wide table on phones) --- */
+
+.results-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.result-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.35rem 0.2rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.result-group-head .reclaim-tag {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.rcard {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.7rem;
+  padding: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.rcard.queued {
+  border-color: color-mix(in srgb, var(--ok) 45%, var(--border));
+  background: color-mix(in srgb, var(--ok) 9%, var(--surface-2));
+  box-shadow: inset 3px 0 0 var(--ok);
+}
+
+.rcard.selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-2));
+}
+
+:root[data-theme="salvage"] .rcard.selected {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.rcard-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-sm);
+}
+
+.rcard-main {
+  min-width: 0;
+}
+
+.rcard-name {
+  font-weight: 700;
+  font-size: 0.92rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rcard-path {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 0.15rem;
+}
+
+.rcard-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+}
+
+.rchip {
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+
+.rcard-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.45rem;
+  margin-top: 0.1rem;
+}
+
+.rcard-actions button {
+  flex: 1;
+  text-align: center;
+  padding: 0.5rem;
+}
+
+.rcard-actions .queued-note {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
 /* --- preview panel (sticky, right column) --- */
 
 .preview-panel {
   position: sticky;
   top: 3.5rem;
-  /* Never taller than what's left of the viewport below the sticky nav,
-     so a long path/large preview scrolls inside the panel instead of
-     pushing its own bottom half off-screen. */
   max-height: calc(100vh - 4.5rem);
   overflow-y: auto;
   background: var(--surface);
@@ -580,9 +1026,10 @@ td.col-actions {
   width: 100%;
   max-height: 240px;
   object-fit: contain;
-  border-radius: 6px;
-  background: #0002;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.15);
   display: block;
+  cursor: zoom-in;
 }
 
 .preview-generic {
@@ -595,10 +1042,11 @@ td.col-actions {
   padding: 0.4rem;
   font-size: 0.8rem;
   color: var(--muted);
+  cursor: default;
 }
 
 .preview-path {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.68rem;
   color: var(--muted);
   word-break: break-all;
@@ -611,7 +1059,7 @@ td.col-actions {
   margin: 0;
 }
 
-/* --- preview overlay (double click) --- */
+/* --- preview overlay (double click / thumbnail click) --- */
 
 .preview-overlay {
   background: var(--surface);
@@ -623,12 +1071,14 @@ td.col-actions {
   display: flex;
   flex-direction: column;
   align-items: center;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
 }
 
 .preview-overlay-media {
   max-width: 100%;
   max-height: 75vh;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
+  background: #000;
 }
 
 /* --- bad extensions (flat, read-only table) --- */
@@ -639,13 +1089,13 @@ td.col-actions {
   font-size: 0.82rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
 .bad-extensions-table td {
-  border-bottom: 1px solid var(--border);
-  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--hairline);
+  padding: 0.45rem 0.5rem;
   word-break: break-all;
 }
 
@@ -654,7 +1104,7 @@ td.col-actions {
 }
 
 .bad-extensions-table tr:hover {
-  background: var(--bg);
+  background: var(--surface-2);
 }
 
 .bad-extensions-action {
@@ -668,14 +1118,16 @@ td.col-actions {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 0.4rem 0.6rem;
-  margin-bottom: 0.7rem;
+  box-shadow: var(--shadow);
+  padding: 0.45rem 0.7rem;
+  margin-bottom: 0.8rem;
   font-size: 0.8rem;
 }
 
 .scan-messages summary {
   cursor: pointer;
   color: var(--muted);
+  font-weight: 600;
 }
 
 .scan-messages ul {
@@ -687,6 +1139,8 @@ td.col-actions {
 
 .scan-messages li {
   color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
   word-break: break-word;
   margin-bottom: 0.3rem;
 }
@@ -699,8 +1153,13 @@ td.col-actions {
 
 .category-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.35rem;
-  margin-bottom: 0.7rem;
+  margin-bottom: 0.8rem;
+}
+
+.category-tabs button {
+  border-radius: 999px;
 }
 
 .category-tabs .active {
@@ -712,7 +1171,12 @@ td.col-actions {
 .operation-list {
   list-style: none;
   padding: 0;
-  margin: 0 0 0.7rem;
+  margin: 0 0 0.8rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
 }
 
 .operation-list li {
@@ -720,8 +1184,8 @@ td.col-actions {
   flex-wrap: wrap;
   gap: 0.45rem;
   align-items: center;
-  padding: 0.4rem 0.15rem;
-  border-bottom: 1px solid var(--border);
+  padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid var(--hairline);
   font-size: 0.82rem;
 }
 
@@ -730,16 +1194,48 @@ td.col-actions {
 }
 
 .op-type {
-  font-weight: 600;
-  min-width: 4.5rem;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  min-width: 4.8rem;
+  text-align: center;
+  color: var(--muted);
+  background: var(--surface-2);
+}
+
+.op-type.delete {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.op-type.hardlink {
+  color: var(--ref);
+  background: var(--ref-soft);
+}
+
+.op-type.rename {
+  color: var(--best);
+  background: var(--best-soft);
 }
 
 .op-src,
 .op-dst {
   word-break: break-all;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.76rem;
   color: var(--muted);
+}
+
+.op-arrow {
+  color: var(--accent);
+}
+
+.op-src {
+  flex: 1;
+  min-width: 8rem;
 }
 
 .report ul {
@@ -749,9 +1245,10 @@ td.col-actions {
 }
 
 .report li {
-  padding: 0.25rem 0;
+  padding: 0.28rem 0;
   font-size: 0.82rem;
-  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  border-bottom: 1px solid var(--hairline);
 }
 
 .report li:last-child {
@@ -766,12 +1263,13 @@ td.col-actions {
   color: var(--ok);
 }
 
-/* --- folder browser modal (also reused by the preview overlay backdrop) --- */
+/* --- folder browser modal (also the preview overlay backdrop) --- */
 
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(10, 12, 16, 0.55);
+  background: rgba(6, 8, 11, 0.62);
+  backdrop-filter: blur(3px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -781,6 +1279,7 @@ td.col-actions {
 
 .modal {
   background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1.1rem;
   max-width: 480px;
@@ -792,7 +1291,7 @@ td.col-actions {
 }
 
 .current-path {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   color: var(--muted);
   word-break: break-all;
@@ -831,14 +1330,30 @@ td.col-actions {
   margin-top: 0.75rem;
 }
 
+/* --- responsive --- */
+
 @media (max-width: 720px) {
   .results-layout {
     grid-template-columns: 1fr;
   }
 
-  /* A fixed bottom bar instead of a column that stacks below the whole
-     results list - otherwise seeing the preview means scrolling all the way
-     down past every group first, every single time a row is selected. */
+  .reclaim {
+    grid-template-columns: 1fr;
+  }
+
+  .reclaim-stats {
+    justify-content: space-between;
+  }
+
+  .reclaim-stats .stat {
+    text-align: left;
+  }
+
+  .nav-name em {
+    display: none;
+  }
+
+  /* A fixed bottom sheet instead of a column stacked below the whole list. */
   .preview-panel {
     position: fixed;
     left: 0;
@@ -848,18 +1363,20 @@ td.col-actions {
     max-height: 45vh;
     overflow-y: auto;
     border-radius: var(--radius) var(--radius) 0 0;
-    box-shadow: 0 -2px 12px #0004;
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.35);
   }
 
-  /* Nothing selected yet: no point reserving screen space for the "select
-     a file" placeholder. */
   .preview-panel-empty {
     display: none;
   }
 
-  /* Leaves room so the fixed bar above never covers the last couple of rows
-     while something is selected. */
   .results-list.has-preview {
     padding-bottom: 45vh;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
   }
 }

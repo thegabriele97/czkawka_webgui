@@ -4,8 +4,29 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Czkawka Web GUI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap"
+    />
   </head>
   <body>
+    <script>
+      // Apply the saved theme before first paint to avoid a flash. Theme is a
+      // deliberate per-device localStorage preference (see useTheme).
+      (function () {
+        try {
+          var t = localStorage.getItem("czkawka-theme");
+          if (t !== "daylight" && t !== "salvage") {
+            t = window.matchMedia("(prefers-color-scheme: dark)").matches ? "salvage" : "daylight";
+          }
+          document.documentElement.dataset.theme = t;
+        } catch (e) {
+          document.documentElement.dataset.theme = "daylight";
+        }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
