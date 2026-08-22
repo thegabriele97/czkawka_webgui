@@ -88,6 +88,51 @@ def test_apply_is_best_effort_across_failures(app_client, monkeypatch):
     assert client.get("/api/operations/counts").json()["counts"] == {}
 
 
+def test_bulk_create_queues_every_operation(app_client):
+    client, data_root = app_client
+    a = data_root / "a.txt"
+    b = data_root / "b.txt"
+    ref = data_root / "ref.txt"
+    for f in (a, b, ref):
+        f.write_text("x")
+
+    response = client.post(
+        "/api/operations/bulk",
+        json={
+            "operations": [
+                {"category": "duplicates", "op_type": "delete", "src_path": str(a)},
+                {"category": "duplicates", "op_type": "hardlink", "src_path": str(ref), "dst_path": str(b)},
+            ]
+        },
+    )
+    assert response.status_code == 200
+    created = response.json()
+    assert len(created) == 2
+    assert all(op["status"] == "pending" for op in created)
+
+    listed = client.get("/api/operations", params={"category": "duplicates"}).json()
+    assert len(listed) == 2
+
+
+def test_bulk_create_rejects_whole_batch_on_bad_item(app_client):
+    client, data_root = app_client
+    good = data_root / "good.txt"
+    good.write_text("x")
+
+    # A hardlink missing dst_path invalidates the batch - nothing should queue.
+    response = client.post(
+        "/api/operations/bulk",
+        json={
+            "operations": [
+                {"category": "duplicates", "op_type": "delete", "src_path": str(good)},
+                {"category": "duplicates", "op_type": "hardlink", "src_path": str(good)},
+            ]
+        },
+    )
+    assert response.status_code == 400
+    assert client.get("/api/operations", params={"category": "duplicates"}).json() == []
+
+
 def test_rename_requires_dst_path(app_client):
     client, data_root = app_client
     src = data_root / "photo.txt"
