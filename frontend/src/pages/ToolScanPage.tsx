@@ -9,6 +9,7 @@ import { ProgressBar } from "../components/ProgressBar";
 import { ReclaimSummary } from "../components/ReclaimSummary";
 import { ScanWarnings } from "../components/ScanWarnings";
 import { ResultsTable, type ExtraColumn } from "../components/ResultsTable";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 
 export interface ToolConfig {
   tool: Tool;
@@ -53,6 +54,11 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
   // sync with `selected` so arrow-key navigation continues from wherever a
   // mouse click landed, and vice versa. null = nothing selected yet.
   const [navIndex, setNavIndex] = useState<number | null>(null);
+  // On mobile the preview is the full-screen overlay only - the inline
+  // sticky/bottom-sheet panel is a desktop affordance. Rendering it on a
+  // phone made a stray desktop-style preview linger behind and after the
+  // overlay when navigating between candidates with the arrows.
+  const isNarrow = useMediaQuery("(max-width: 720px)");
 
   const directories = folders.filter((f) => !f.isReference).map((f) => f.path);
   const referenceDirectories = config.supportsReference ? folders.filter((f) => f.isReference).map((f) => f.path) : [];
@@ -293,7 +299,7 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
 
       {scan?.status === "done" && (
         <section className="results-layout" onClick={clearSelection}>
-          <div className={selected ? "results-list has-preview" : "results-list"}>
+          <div className={selected && !isNarrow ? "results-list has-preview" : "results-list"}>
             <h3>Results ({groups.length} groups)</h3>
             {groups.length === 0 && <p>No results.</p>}
             {groups.length > 0 && (
@@ -308,9 +314,11 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
               />
             )}
           </div>
-          <div className="preview-column" onClick={(e) => e.stopPropagation()}>
-            <PreviewPanel entry={selected} onOpen={setOpened} />
-          </div>
+          {!isNarrow && (
+            <div className="preview-column" onClick={(e) => e.stopPropagation()}>
+              <PreviewPanel entry={selected} onOpen={setOpened} />
+            </div>
+          )}
         </section>
       )}
 

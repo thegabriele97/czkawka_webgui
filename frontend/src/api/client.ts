@@ -33,6 +33,8 @@ export const api = {
   operationCounts: () => request<{ counts: Record<string, number> }>("/operations/counts"),
   listOperations: (category: string) => request<OperationOut[]>(`/operations?category=${encodeURIComponent(category)}`),
   createOperation: (payload: OperationCreate) => request<OperationOut>("/operations", { method: "POST", body: JSON.stringify(payload) }),
+  bulkCreateOperations: (operations: OperationCreate[]) =>
+    request<OperationOut[]>("/operations/bulk", { method: "POST", body: JSON.stringify({ operations }) }),
   deleteOperation: (id: number) => request<void>(`/operations/${id}`, { method: "DELETE" }),
   applyOperations: (category: string) => request<OperationOut[]>(`/operations/apply?category=${encodeURIComponent(category)}`, { method: "POST" }),
 
