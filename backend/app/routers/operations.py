@@ -7,7 +7,7 @@ from .. import bridge
 from ..db import get_db
 from ..models import PendingOperation
 from ..paths import resolve_under_data_root
-from ..schemas import OperationCounts, OperationCreate, OperationOut
+from ..schemas import OperationBulkCreate, OperationCounts, OperationCreate, OperationOut
 
 router = APIRouter(prefix="/api/operations", tags=["operations"])
 
@@ -68,6 +68,35 @@ def create_operation(payload: OperationCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(op)
     return _to_out(op)
+
+
+@router.post("/bulk", response_model=list[OperationOut])
+def create_operations_bulk(payload: OperationBulkCreate, db: Session = Depends(get_db)):
+    """Queues many operations at once - the "apply this action to every group"
+    entry point. Every item is validated and path-checked exactly as the
+    single-create endpoint does; if any item is invalid the whole batch is
+    rejected (400) and nothing is queued, so the caller never ends up with a
+    half-applied bulk selection."""
+    to_add: list[PendingOperation] = []
+    for item in payload.operations:
+        if item.op_type in ("hardlink", "rename") and not item.dst_path:
+            raise HTTPException(status_code=400, detail=f"{item.op_type} operations require dst_path")
+        src = resolve_under_data_root(item.src_path)
+        dst = resolve_under_data_root(item.dst_path) if item.dst_path else None
+        to_add.append(
+            PendingOperation(
+                category=item.category,
+                op_type=item.op_type,
+                src_path=str(src),
+                dst_path=str(dst) if dst else None,
+                status="pending",
+            )
+        )
+    db.add_all(to_add)
+    db.commit()
+    for op in to_add:
+        db.refresh(op)
+    return [_to_out(op) for op in to_add]
 
 
 @router.delete("/{operation_id}")

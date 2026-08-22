@@ -90,6 +90,9 @@ Scan statuses: `pending` (unused today, scans go straight to `running`) → `run
   device belongs in the DB behind a small router, following this same single-row pattern.
 - `PendingOperation` — a queued delete/hardlink/rename action (one row per file decision), applied in a batch later
   via `POST /api/operations/apply`. Deliberately best-effort per-row: one failure doesn't abort the batch.
+  Queued one-at-a-time from the row actions, or in bulk via `POST /api/operations/bulk` (the results table's
+  "Queue delete/hardlink · all groups" bar — see `ResultsTable`); either way the user then prunes individual
+  rows (Cancel) before applying, so nothing touches disk until `apply`.
   `rename` is Bad Extensions' "use the extension the content implies" fix; `dst_path` is the target path, required
   for `hardlink` and `rename` alike. The bridge refuses a rename whose target already exists rather than clobbering
   an unrelated file (`bridge/src/actions.rs::run_rename_cmd`) — there's no `czkawka_core` helper for renaming, so
@@ -106,8 +109,11 @@ real backfill decision, not a silent ALTER.
 - `browse` — `GET /api/browse?path=` lists a directory under `DATA_ROOT` (folder picker backend).
 - `scans` — `POST /api/scans`, `GET /api/scans/latest?tool=`, `GET /api/scans/{id}`, `POST /api/scans/{id}/stop`.
   Route order matters: `/latest` is registered before `/{scan_id}` so it isn't swallowed by the path param.
-- `operations` — `GET /api/operations?category=`, `POST /api/operations`, `DELETE /api/operations/{id}`,
-  `GET /api/operations/counts`, `POST /api/operations/apply?category=`.
+- `operations` — `GET /api/operations?category=`, `POST /api/operations`, `POST /api/operations/bulk`,
+  `DELETE /api/operations/{id}`, `GET /api/operations/counts`, `POST /api/operations/apply?category=`.
+  `bulk` queues a whole list of decisions in one request (the "apply this action to every group" button);
+  it validates/path-checks every item exactly like single-create and rejects the *whole* batch (400) if any
+  item is invalid, so a bulk selection never lands half-applied.
 - `media` — `GET /api/media?path=` (serves the raw file, range-request aware, for the preview overlay/video
   playback), `GET /api/media/thumbnail?path=` (ffmpeg single-frame JPEG extraction for video previews).
 - `settings` — `GET /api/settings/{tool}` returns the persisted `ToolSettings` for that tool.
@@ -158,7 +164,12 @@ duplicate ad hoc path checks elsewhere, route through this function instead.
   their widest actual value via a `<canvas>` (table cells don't report `scrollWidth` as content width, so measuring
   the DOM is unreliable — measuring the text is not); the file name takes the leftover. Manual drag-resize still wins
   per column. Each row carries a `MediaThumb` (click opens the overlay); a queued row gets a light green tint + edge
-  stripe (`.queued`), and the hardlink action is a compact chain-link icon in the desktop table.
+  stripe (`.queued`), and the hardlink action is a compact chain-link icon in the desktop table. Above the
+  results sits the **bulk-action bar** (`.bulk-bar`): a czkawka_gui-style "select all except …" keep-rule
+  dropdown (newest/oldest/largest/smallest) plus "Queue delete/hardlink · all groups" buttons that queue one
+  op per eligible member across every group in a single `bulkCreateOperations` call (skipping already-queued
+  rows). With a reference folder the reference is always the keep (keep-rule hidden, every member queued);
+  without one, the rule-picked member is spared per group. Hardlink-all only appears when a reference exists.
 - `components/MediaThumb.tsx` — the results thumbnail (images direct, videos via `/api/media/thumbnail`, else a dash),
   with the REF / suggested-keep (★) markers **overlaid on the thumbnail corners** rather than inline before the name,
   so every file name in the column stays left-aligned. Clicking it opens `PreviewOverlay`.
@@ -169,9 +180,12 @@ duplicate ad hoc path checks elsewhere, route through this function instead.
   stretch }`, since `.results-layout`'s `align-items: start` otherwise shrinks the cell to the panel's own height
   and a `position: sticky` element can never travel outside its cell, which made the preview scroll off-screen on
   long result lists; clicking the preview opens the overlay) vs `components/PreviewOverlay.tsx` (full overlay on
-  thumbnail/preview click or row double-click, for actual playback). Mobile CSS switches the inline panel to
-  `position: fixed` at the bottom (`@media (max-width: 720px)` in `index.css`) so it's reachable without scrolling
-  past the whole results list.
+  thumbnail/preview click or row double-click, for actual playback). **On mobile the inline panel isn't rendered
+  at all** — `ToolScanPage` gates `PreviewPanel` behind an `isNarrow` (`max-width: 720px`) check, so previews on a
+  phone go exclusively through the full-screen overlay. (This replaced an earlier fixed bottom-sheet variant of the
+  inline panel: navigating between candidates with the overlay's arrows also drives `selected`, which left that
+  desktop-style panel lingering behind and after the overlay on mobile — a reported bug. Don't reintroduce a
+  mobile inline panel without breaking that link.)
 
 ## Advanced scan options
 
