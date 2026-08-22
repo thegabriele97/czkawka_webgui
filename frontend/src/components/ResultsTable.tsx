@@ -4,8 +4,33 @@ import { useDataRoot } from "../api/DataRootContext";
 import { displayPath } from "../api/displayPath";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { suggestBest } from "../api/suggestBest";
-import type { FileEntryLike, Group, Tool } from "../api/types";
+import type { FileEntryLike, Group, OperationCreate, Tool } from "../api/types";
 import { MediaThumb } from "./MediaThumb";
+
+/** czkawka_gui-style "select all except ..." rule: which single member of a
+ * group to keep when queueing an action across every group at once. Ignored
+ * when a reference folder is in play - there the reference is always the
+ * keep, so every member is queued regardless of this. */
+type KeepRule = "newest" | "oldest" | "largest" | "smallest";
+
+const KEEP_RULE_LABELS: Record<KeepRule, string> = {
+  newest: "Keep newest",
+  oldest: "Keep oldest",
+  largest: "Keep largest",
+  smallest: "Keep smallest",
+};
+
+/** The member to keep in a reference-less group under a given rule (all the
+ * others become the bulk selection). Missing metadata sorts to the losing
+ * end so a file with an unknown date/size is never the one silently kept. */
+function keptMember(members: FileEntryLike[], rule: KeepRule): FileEntryLike | null {
+  if (members.length === 0) return null;
+  const dateOf = (e: FileEntryLike) => (e.modified_date as number | undefined) ?? 0;
+  const sizeOf = (e: FileEntryLike) => (e.size as number | undefined) ?? 0;
+  const scoreOf = rule === "newest" || rule === "oldest" ? dateOf : sizeOf;
+  const wantMax = rule === "newest" || rule === "largest";
+  return members.reduce((best, e) => (wantMax ? scoreOf(e) > scoreOf(best) : scoreOf(e) < scoreOf(best)) ? e : best);
+}
 
 /** Extra, tool-specific columns beyond the universal name/path/size/date -
  * the metadata czkawka_gui itself shows to help judge "which file is
@@ -335,6 +360,12 @@ export function ResultsTable({ category, groups, extraColumns, selectedPath, onS
   const rowRefs = useRef<Map<string, HTMLElement>>(new Map());
   const isNarrow = useMediaQuery("(max-width: 720px)");
   const dataRoot = useDataRoot();
+  const [keepRule, setKeepRule] = useState<KeepRule>("newest");
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  // Every group carries a reference iff the scan used a reference folder, so
+  // one group's shape answers for all of them.
+  const hasReference = groups.some((g) => g.reference);
 
   // Keeps the selected row in view as it changes - most useful for arrow-key
   // navigation, which can move the selection somewhere currently scrolled
@@ -462,9 +493,78 @@ export function ResultsTable({ category, groups, extraColumns, selectedPath, onS
     onQueued();
   }
 
+  // "Apply this action to every group in one shot": build one op per eligible
+  // member across all groups, skipping anything already queued, then queue
+  // them in a single request. The user prunes individual rows afterwards
+  // (Cancel) before applying - nothing touches disk here. With a reference
+  // folder the reference is untouchable and every member is eligible; without
+  // one, the member picked by `keepRule` is spared in each group.
+  async function bulkQueue(opType: "delete" | "hardlink") {
+    if (bulkBusy) return;
+    const payload: OperationCreate[] = [];
+    for (const group of groups) {
+      if (opType === "hardlink") {
+        if (!group.reference) continue;
+        for (const entry of group.members) {
+          if (queuedByPath[entry.path]) continue;
+          payload.push({ category, op_type: "hardlink", src_path: group.reference.path, dst_path: entry.path });
+        }
+        continue;
+      }
+      // delete: keep the reference (if any), else the member the rule spares.
+      const keep = group.reference ? null : keptMember(group.members, keepRule);
+      for (const entry of group.members) {
+        if (entry.path === keep?.path || queuedByPath[entry.path]) continue;
+        payload.push({ category, op_type: "delete", src_path: entry.path });
+      }
+    }
+    if (payload.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const created = await api.bulkCreateOperations(payload);
+      setQueuedByPath((prev) => {
+        const next = { ...prev };
+        for (const op of created) next[op.dst_path ?? op.src_path] = { id: op.id };
+        return next;
+      });
+      onQueued();
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  const bulkBar = (
+    <div className="bulk-bar">
+      <span className="bulk-bar-label">Bulk actions:</span>
+      {hasReference ? (
+        <span className="bulk-bar-note">Reference kept in each group</span>
+      ) : (
+        <label className="bulk-keep">
+          <select value={keepRule} onChange={(e) => setKeepRule(e.target.value as KeepRule)} disabled={bulkBusy}>
+            {(Object.keys(KEEP_RULE_LABELS) as KeepRule[]).map((rule) => (
+              <option key={rule} value={rule}>
+                {KEEP_RULE_LABELS[rule]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <button className="danger" onClick={() => bulkQueue("delete")} disabled={bulkBusy}>
+        Queue delete · all groups
+      </button>
+      {hasReference && (
+        <button onClick={() => bulkQueue("hardlink")} disabled={bulkBusy}>
+          Queue hardlink · all groups
+        </button>
+      )}
+    </div>
+  );
+
   if (isNarrow) {
     return (
-      <div className="results-cards">
+      <>
+        {bulkBar}
+        <div className="results-cards">
         {groups.map((group, groupIndex) => {
           const allEntries = group.reference ? [group.reference, ...group.members] : group.members;
           const best = suggestBest(allEntries);
@@ -523,12 +623,15 @@ export function ResultsTable({ category, groups, extraColumns, selectedPath, onS
             </Fragment>
           );
         })}
-      </div>
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="table-scroll" ref={containerRef}>
+    <>
+      {bulkBar}
+      <div className="table-scroll" ref={containerRef}>
       <table className="group-table" style={{ tableLayout: "fixed" }}>
         <thead>
           <tr>
@@ -620,6 +723,7 @@ export function ResultsTable({ category, groups, extraColumns, selectedPath, onS
           })}
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   );
 }

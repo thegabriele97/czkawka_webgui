@@ -885,6 +885,35 @@ td.col-actions {
 
 /* --- results: mobile card list (replaces the wide table on phones) --- */
 
+.bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.65rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.bulk-bar-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.bulk-bar-note {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.bulk-bar .bulk-keep {
+  margin-right: auto;
+}
+
 .results-cards {
   display: flex;
   flex-direction: column;
@@ -1401,26 +1430,9 @@ td.col-actions {
     display: none;
   }
 
-  /* A fixed bottom sheet instead of a column stacked below the whole list. */
-  .preview-panel {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 20;
-    max-height: 45vh;
-    overflow-y: auto;
-    border-radius: var(--radius) var(--radius) 0 0;
-    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.35);
-  }
-
-  .preview-panel-empty {
-    display: none;
-  }
-
-  .results-list.has-preview {
-    padding-bottom: 45vh;
-  }
+  /* No inline preview on mobile - previews go through the full-screen overlay
+     only (see ToolScanPage's isNarrow gate), so the desktop sticky panel is
+     never rendered here. */
 }
 
 @media (prefers-reduced-motion: reduce) {

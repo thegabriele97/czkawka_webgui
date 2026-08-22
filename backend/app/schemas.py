@@ -48,6 +48,14 @@ class OperationCreate(BaseModel):
     dst_path: str | None = None
 
 
+class OperationBulkCreate(BaseModel):
+    """A batch of decisions queued in one shot (e.g. "delete every duplicate
+    except the one kept per group"). Same per-item shape as OperationCreate;
+    the user then prunes individual rows before applying."""
+
+    operations: list[OperationCreate]
+
+
 class OperationOut(BaseModel):
     id: int
     category: str
