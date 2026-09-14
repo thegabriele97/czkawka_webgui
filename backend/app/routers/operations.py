@@ -99,6 +99,20 @@ def create_operations_bulk(payload: OperationBulkCreate, db: Session = Depends(g
     return [_to_out(op) for op in to_add]
 
 
+@router.delete("")
+def clear_operations(category: str, db: Session = Depends(get_db)):
+    """Drops every still-pending operation in `category` in one shot - the
+    "Clear queued" bulk button. Only pending rows are touched; anything
+    already applied stays in its resolved state."""
+    removed = (
+        db.query(PendingOperation)
+        .filter(PendingOperation.category == category, PendingOperation.status == "pending")
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return {"removed": removed}
+
+
 @router.delete("/{operation_id}")
 def delete_operation(operation_id: int, db: Session = Depends(get_db)):
     op = db.get(PendingOperation, operation_id)

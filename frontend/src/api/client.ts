@@ -36,6 +36,7 @@ export const api = {
   bulkCreateOperations: (operations: OperationCreate[]) =>
     request<OperationOut[]>("/operations/bulk", { method: "POST", body: JSON.stringify({ operations }) }),
   deleteOperation: (id: number) => request<void>(`/operations/${id}`, { method: "DELETE" }),
+  clearOperations: (category: string) => request<{ removed: number }>(`/operations?category=${encodeURIComponent(category)}`, { method: "DELETE" }),
   applyOperations: (category: string) => request<OperationOut[]>(`/operations/apply?category=${encodeURIComponent(category)}`, { method: "POST" }),
 
   mediaUrl: (path: string) => `${BASE}/media?path=${encodeURIComponent(path)}`,

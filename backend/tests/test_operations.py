@@ -54,6 +54,22 @@ def test_delete_pending_operation(app_client):
     assert client.get("/api/operations", params={"category": "duplicates"}).json() == []
 
 
+def test_clear_removes_only_that_categorys_pending(app_client):
+    client, data_root = app_client
+    for name in ("a.txt", "b.txt"):
+        (data_root / name).write_text("x")
+        client.post("/api/operations", json={"category": "duplicates", "op_type": "delete", "src_path": str(data_root / name)})
+    (data_root / "c.txt").write_text("x")
+    client.post("/api/operations", json={"category": "similar_images", "op_type": "delete", "src_path": str(data_root / "c.txt")})
+
+    response = client.delete("/api/operations", params={"category": "duplicates"})
+    assert response.status_code == 200
+    assert response.json()["removed"] == 2
+
+    assert client.get("/api/operations", params={"category": "duplicates"}).json() == []
+    assert len(client.get("/api/operations", params={"category": "similar_images"}).json()) == 1
+
+
 def test_apply_is_best_effort_across_failures(app_client, monkeypatch):
     client, data_root = app_client
     ok_file = data_root / "ok.txt"
