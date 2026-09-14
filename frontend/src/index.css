@@ -908,10 +908,23 @@ td.col-actions {
 .bulk-bar-note {
   font-size: 0.8rem;
   color: var(--muted);
+  margin-right: auto;
 }
 
 .bulk-bar .bulk-keep {
   margin-right: auto;
+}
+
+/* Secondary, low-emphasis escape hatch - sits apart from the queue actions. */
+.bulk-bar .bulk-clear {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+.bulk-bar .bulk-clear:not(:disabled):hover {
+  color: var(--fg);
+  border-color: var(--fg);
 }
 
 .results-cards {
