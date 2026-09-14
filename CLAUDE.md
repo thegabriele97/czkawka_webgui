@@ -110,7 +110,8 @@ real backfill decision, not a silent ALTER.
 - `scans` — `POST /api/scans`, `GET /api/scans/latest?tool=`, `GET /api/scans/{id}`, `POST /api/scans/{id}/stop`.
   Route order matters: `/latest` is registered before `/{scan_id}` so it isn't swallowed by the path param.
 - `operations` — `GET /api/operations?category=`, `POST /api/operations`, `POST /api/operations/bulk`,
-  `DELETE /api/operations/{id}`, `GET /api/operations/counts`, `POST /api/operations/apply?category=`.
+  `DELETE /api/operations/{id}`, `DELETE /api/operations?category=` (clears every pending op in one category — the
+  "Clear queued · all groups" bulk button), `GET /api/operations/counts`, `POST /api/operations/apply?category=`.
   `bulk` queues a whole list of decisions in one request (the "apply this action to every group" button);
   it validates/path-checks every item exactly like single-create and rejects the *whole* batch (400) if any
   item is invalid, so a bulk selection never lands half-applied.
@@ -170,6 +171,11 @@ duplicate ad hoc path checks elsewhere, route through this function instead.
   op per eligible member across every group in a single `bulkCreateOperations` call (skipping already-queued
   rows). With a reference folder the reference is always the keep (keep-rule hidden, every member queued);
   without one, the rule-picked member is spared per group. Hardlink-all only appears when a reference exists.
+  The bulk queue is **additive** (never overwrites the existing queue); to undo a bulk selection or switch keep-rule
+  cleanly, the bar has a low-emphasis **"Clear queued · all groups"** button (`.bulk-clear`) that empties the whole
+  category via `DELETE /api/operations?category=`. Deliberately a plain clear, not a smart per-rule re-sync — the
+  owner chose the additive+clear model over auto-replace so a manual per-row queue is never silently wiped by the
+  bulk bar.
 - `components/MediaThumb.tsx` — the results thumbnail (images direct, videos via `/api/media/thumbnail`, else a dash),
   with the REF / suggested-keep (★) markers **overlaid on the thumbnail corners** rather than inline before the name,
   so every file name in the column stays left-aligned. Clicking it opens `PreviewOverlay`.

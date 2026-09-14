@@ -533,6 +533,21 @@ export function ResultsTable({ category, groups, extraColumns, selectedPath, onS
     }
   }
 
+  // Empties the whole pending queue for this tool in one request - the escape
+  // hatch from a bulk selection (e.g. picked the wrong keep-rule) without
+  // cancelling every row by hand.
+  async function bulkClear() {
+    if (bulkBusy || Object.keys(queuedByPath).length === 0) return;
+    setBulkBusy(true);
+    try {
+      await api.clearOperations(category);
+      setQueuedByPath({});
+      onQueued();
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   const bulkBar = (
     <div className="bulk-bar">
       <span className="bulk-bar-label">Bulk actions:</span>
@@ -557,6 +572,9 @@ export function ResultsTable({ category, groups, extraColumns, selectedPath, onS
           Queue hardlink · all groups
         </button>
       )}
+      <button className="bulk-clear" onClick={bulkClear} disabled={bulkBusy || Object.keys(queuedByPath).length === 0}>
+        Clear queued · all groups
+      </button>
     </div>
   );
 
