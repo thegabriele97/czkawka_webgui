@@ -734,9 +734,9 @@ dependencies = [
 
 [[package]]
 name = "czkawka_core"
-version = "12.0.1"
+version = "12.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39e23cb84c5fac22f76ae11c4faf76090f57dc2c6bb780f127fd46ba507df7b0"
+checksum = "3db1c6b81ebd57b394eec1d75b0fe4ccd1ac9d3b07c10f5b95bbd3b8428bbcdf"
 dependencies = [
  "bincode",
  "bitflags 2.13.0",
