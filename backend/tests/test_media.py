@@ -45,6 +45,8 @@ def test_thumbnail_extracts_a_frame_from_a_video(app_client):
     assert response.status_code == 200
     assert response.headers["content-type"] == "image/jpeg"
     assert response.content[:2] == b"\xff\xd8"  # JPEG magic bytes
+    # Cached so re-renders don't re-spawn ffmpeg for the same file.
+    assert "max-age" in response.headers.get("cache-control", "")
 
 
 def test_thumbnail_missing_file_returns_404(app_client):

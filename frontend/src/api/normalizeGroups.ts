@@ -1,14 +1,5 @@
 import type { FileEntryLike, Group } from "./types";
 
-/** Duplicates come back as an object keyed by size, where each value is
- * itself a *list* of groups sharing that size (there can be more than one
- * distinct hash-group per size bucket) - so it needs one `.flat()` to reach
- * the actual list of groups. Similar-images/videos come back as a plain
- * array of groups already, no extra nesting. Either way, each group is
- * either a flat list of entries (no reference folder was used) or a
- * `[reference, members[]]` tuple (a reference folder was used) - this
- * normalizes both shapes into one `Group[]` the UI can render the same way
- * regardless of tool or reference mode. */
 /** czkawka_core collects matches with a hash map internally, so group order
  * (and sometimes the order of files within a group) isn't stable between
  * two scans of the very same folders - rescanning can shuffle everything
@@ -25,6 +16,15 @@ function sortGroups(groups: Group[]): Group[] {
   });
 }
 
+/** Duplicates come back as an object keyed by size, where each value is
+ * itself a *list* of groups sharing that size (there can be more than one
+ * distinct hash-group per size bucket) - so it needs one `.flat()` to reach
+ * the actual list of groups. Similar-images/videos come back as a plain
+ * array of groups already, no extra nesting. Either way, each group is
+ * either a flat list of entries (no reference folder was used) or a
+ * `[reference, members[]]` tuple (a reference folder was used) - this
+ * normalizes both shapes into one `Group[]` the UI can render the same way
+ * regardless of tool or reference mode. */
 export function normalizeGroups(result: unknown, hasReference: boolean): Group[] {
   if (!result) return [];
   const rawGroups: unknown[] = Array.isArray(result) ? result : Object.values(result as Record<string, unknown>).flat();

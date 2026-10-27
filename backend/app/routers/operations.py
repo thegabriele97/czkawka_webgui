@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from .. import bridge
@@ -26,11 +27,13 @@ def _to_out(op: PendingOperation) -> OperationOut:
 
 @router.get("/counts", response_model=OperationCounts)
 def get_counts(db: Session = Depends(get_db)):
-    rows = db.query(PendingOperation.category).filter(PendingOperation.status == "pending").all()
-    counts: dict[str, int] = {}
-    for (category,) in rows:
-        counts[category] = counts.get(category, 0) + 1
-    return OperationCounts(counts=counts)
+    rows = (
+        db.query(PendingOperation.category, func.count())
+        .filter(PendingOperation.status == "pending")
+        .group_by(PendingOperation.category)
+        .all()
+    )
+    return OperationCounts(counts=dict(rows))
 
 
 @router.get("", response_model=list[OperationOut])

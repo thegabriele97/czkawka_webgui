@@ -45,4 +45,7 @@ def get_thumbnail(path: str = Query(...)):
     if result.returncode != 0 or not result.stdout:
         raise HTTPException(status_code=500, detail="failed to generate thumbnail")
 
-    return Response(content=result.stdout, media_type="image/jpeg")
+    # A thumbnail is a pure function of the file at this path, so let the
+    # browser cache it: every results row renders a thumbnail and would
+    # otherwise re-spawn ffmpeg on each re-render/revisit.
+    return Response(content=result.stdout, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
