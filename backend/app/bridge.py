@@ -119,6 +119,22 @@ def run_scan(
     with _process_lock:
         _running_processes[scan_id] = process
 
+    # Drain stderr concurrently: the bridge logs to stderr, and if that pipe's
+    # OS buffer fills (~64KB) while we're busy reading stdout, the bridge would
+    # block writing to it and stop producing stdout - a deadlock where neither
+    # side can make progress. A dedicated reader keeps it empty and also hands
+    # us the text to surface in the error message.
+    stderr_chunks: list[str] = []
+
+    def _drain_stderr():
+        if process.stderr is None:
+            return
+        for chunk in process.stderr:
+            stderr_chunks.append(chunk)
+
+    stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
+    stderr_thread.start()
+
     try:
         result = None
         messages: dict = {}
@@ -145,12 +161,18 @@ def run_scan(
                 stopped = True
 
         process.wait()
+        # Bounded join: the drain thread ends at stderr EOF, which normally
+        # arrives the instant the bridge exits. Cap the wait so a stray
+        # grandchild that inherited this fd (e.g. an orphaned ffmpeg) can't pin
+        # the scan's background thread open with the DB row stuck "running".
+        stderr_thread.join(timeout=5.0)
 
         if stopped:
             raise ScanStopped(messages)
         if error is not None or process.returncode != 0:
-            stderr = process.stderr.read() if process.stderr else ""
-            raise RuntimeError(error or stderr or f"bridge exited with code {process.returncode}")
+            # Only read the buffer once the drain thread has stopped appending.
+            stderr = "".join(stderr_chunks) if not stderr_thread.is_alive() else ""
+            raise RuntimeError(error or stderr.strip() or f"bridge exited with code {process.returncode}")
         return ScanOutcome(result=result, messages=messages)
     finally:
         with _process_lock:

@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { buildNavItems } from "../api/navItems";
 import { normalizeGroups } from "../api/normalizeGroups";
-import type { FileEntryLike, FolderEntry, HashAlg, HashSize, ResizeAlgorithm, ScanOut, Tool } from "../api/types";
+import type { FileEntryLike, FolderEntry, HashAlg, HashSize, ResizeAlgorithm, Tool } from "../api/types";
 import { PreviewOverlay } from "../components/PreviewOverlay";
 import { PreviewPanel } from "../components/PreviewPanel";
 import { ProgressBar } from "../components/ProgressBar";
@@ -10,6 +10,7 @@ import { ReclaimSummary } from "../components/ReclaimSummary";
 import { ScanWarnings } from "../components/ScanWarnings";
 import { ResultsTable, type ExtraColumn } from "../components/ResultsTable";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { useScanLifecycle } from "../hooks/useScanLifecycle";
 
 export interface ToolConfig {
   tool: Tool;
@@ -44,10 +45,7 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
   const [cropDetect, setCropDetect] = useState(true);
   const [skipForwardAmount, setSkipForwardAmount] = useState(15);
   const [vidHashDuration, setVidHashDuration] = useState(10);
-  const [scan, setScan] = useState<ScanOut | null>(null);
-  const [starting, setStarting] = useState(false);
-  const [stopping, setStopping] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { scan, starting, stopping, error, start, stop } = useScanLifecycle(config.tool);
   const [selected, setSelected] = useState<FileEntryLike | null>(null);
   const [opened, setOpened] = useState<FileEntryLike | null>(null);
   // Index into the flattened (groups + gap markers) nav sequence - kept in
@@ -62,27 +60,6 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
 
   const directories = folders.filter((f) => !f.isReference).map((f) => f.path);
   const referenceDirectories = config.supportsReference ? folders.filter((f) => f.isReference).map((f) => f.path) : [];
-
-  // Reattach to whatever scan was last run for this tool - the backend
-  // keeps a scan going in the background regardless of whether anyone's
-  // watching, so a page reload shouldn't make it look like nothing is
-  // happening (or lose already-computed results).
-  useEffect(() => {
-    api
-      .getLatestScan(config.tool)
-      .then((latest) => {
-        if (latest) setScan(latest);
-      })
-      .catch(() => undefined);
-  }, [config.tool]);
-
-  useEffect(() => {
-    if (!scan || scan.status !== "running") return;
-    const interval = setInterval(() => {
-      api.getScan(scan.id).then(setScan).catch(() => undefined);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [scan?.id, scan?.status]);
 
   // Pre-fill the options form with whatever was last used for this tool,
   // so the user doesn't have to re-enter them on every visit.
@@ -104,54 +81,38 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
   }, [config.tool]);
 
   async function startScan() {
-    setError(null);
-    setStarting(true);
     setSelected(null);
     setNavIndex(null);
-    try {
-      const created = await api.createScan({
-        tool: config.tool,
-        directories,
-        reference_directories: referenceDirectories,
-        max_difference: maxDifference,
-        tolerance,
-        ignore_same_size: ignoreSameSize,
-        hash_size: hashSize,
-        hash_alg: hashAlg,
-        resize_algorithm: resizeAlgorithm,
-        crop_detect: cropDetect,
-        skip_forward_amount: skipForwardAmount,
-        vid_hash_duration: vidHashDuration,
-      });
-      setScan(created);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setStarting(false);
-    }
-  }
-
-  async function stopScan() {
-    if (!scan) return;
-    setStopping(true);
-    try {
-      setScan(await api.stopScan(scan.id));
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setStopping(false);
-    }
+    await start({
+      tool: config.tool,
+      directories,
+      reference_directories: referenceDirectories,
+      max_difference: maxDifference,
+      tolerance,
+      ignore_same_size: ignoreSameSize,
+      hash_size: hashSize,
+      hash_alg: hashAlg,
+      resize_algorithm: resizeAlgorithm,
+      crop_detect: cropDetect,
+      skip_forward_amount: skipForwardAmount,
+      vid_hash_duration: vidHashDuration,
+    });
   }
 
   // Whether the *currently displayed* scan was run with a reference folder -
   // read from the scan itself (as the backend recorded it at the time),
   // not from the folder panel's live state, which may have moved on.
-  const groups = scan?.status === "done" ? normalizeGroups(scan.result, scan.reference_directories.length > 0) : [];
+  // Memoized so re-renders (e.g. moving the selection) don't re-sort every
+  // group/member on each keystroke.
+  const groups = useMemo(
+    () => (scan?.status === "done" ? normalizeGroups(scan.result, scan.reference_directories.length > 0) : []),
+    [scan],
+  );
+  const navItems = useMemo(() => buildNavItems(groups), [groups]);
 
   function selectRow(entry: FileEntryLike) {
     setSelected(entry);
-    const items = buildNavItems(groups);
-    const index = items.findIndex((item) => item.kind === "entry" && item.entry.path === entry.path);
+    const index = navItems.findIndex((item) => item.kind === "entry" && item.entry.path === entry.path);
     setNavIndex(index === -1 ? null : index);
   }
 
@@ -161,18 +122,17 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
   }
 
   function moveSelection(delta: number) {
-    const items = buildNavItems(groups);
-    if (items.length === 0) return;
-    const next = navIndex === null ? (delta > 0 ? 0 : items.length - 1) : Math.min(items.length - 1, Math.max(0, navIndex + delta));
+    if (navItems.length === 0) return;
+    const next = navIndex === null ? (delta > 0 ? 0 : navItems.length - 1) : Math.min(navItems.length - 1, Math.max(0, navIndex + delta));
     setNavIndex(next);
-    const item = items[next];
+    const item = navItems[next];
     setSelected(item.kind === "entry" ? item.entry : null);
   }
 
   // The overlay walks only real entries (no group gaps - on mobile a blank
   // beat between groups is just friction), keeping `selected` in sync so the
   // desktop panel follows along.
-  const openedEntries = opened ? buildNavItems(groups).flatMap((i) => (i.kind === "entry" ? [i.entry] : [])) : [];
+  const openedEntries = opened ? navItems.flatMap((i) => (i.kind === "entry" ? [i.entry] : [])) : [];
   const openedIndex = opened ? openedEntries.findIndex((e) => e.path === opened.path) : -1;
 
   function moveOpened(delta: number) {
@@ -188,7 +148,7 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
   // and not while the user is typing into a form control elsewhere on the
   // page (e.g. the scan options).
   useEffect(() => {
-    if (groups.length === 0) return;
+    if (navItems.length === 0) return;
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
       const target = e.target as HTMLElement | null;
@@ -199,7 +159,7 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groups, navIndex]);
+  }, [navItems, navIndex]);
 
   return (
     <div className="page">
@@ -286,7 +246,7 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
       {scan?.status === "running" && (
         <div className="scan-progress">
           <ProgressBar label={scan.progress_label} percent={scan.progress_all} />
-          <button onClick={stopScan} disabled={stopping}>
+          <button onClick={stop} disabled={stopping}>
             Stop scan
           </button>
         </div>
@@ -304,6 +264,7 @@ export function ToolScanPage({ config, folders, onOperationsQueued }: ToolScanPa
             {groups.length === 0 && <p>No results.</p>}
             {groups.length > 0 && (
               <ResultsTable
+                key={scan.id}
                 category={config.tool}
                 groups={groups}
                 extraColumns={config.extraColumns}

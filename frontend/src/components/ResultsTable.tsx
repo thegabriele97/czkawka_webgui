@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, useState, type MouseEvent as ReactMouseEve
 import { api } from "../api/client";
 import { useDataRoot } from "../api/DataRootContext";
 import { displayPath } from "../api/displayPath";
+import { baseName, dirName, formatDate, formatDuration, formatSize } from "../api/format";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { suggestBest } from "../api/suggestBest";
 import type { FileEntryLike, Group, OperationCreate, Tool } from "../api/types";
@@ -11,7 +12,7 @@ import { MediaThumb } from "./MediaThumb";
  * group to keep when queueing an action across every group at once. Ignored
  * when a reference folder is in play - there the reference is always the
  * keep, so every member is queued regardless of this. */
-type KeepRule = "newest" | "oldest" | "largest" | "smallest";
+export type KeepRule = "newest" | "oldest" | "largest" | "smallest";
 
 const KEEP_RULE_LABELS: Record<KeepRule, string> = {
   newest: "Keep newest",
@@ -23,7 +24,7 @@ const KEEP_RULE_LABELS: Record<KeepRule, string> = {
 /** The member to keep in a reference-less group under a given rule (all the
  * others become the bulk selection). Missing metadata sorts to the losing
  * end so a file with an unknown date/size is never the one silently kept. */
-function keptMember(members: FileEntryLike[], rule: KeepRule): FileEntryLike | null {
+export function keptMember(members: FileEntryLike[], rule: KeepRule): FileEntryLike | null {
   if (members.length === 0) return null;
   const dateOf = (e: FileEntryLike) => (e.modified_date as number | undefined) ?? 0;
   const sizeOf = (e: FileEntryLike) => (e.size as number | undefined) ?? 0;
@@ -71,10 +72,6 @@ const AUTO_FIT_MAX = 200;
 const PATH_AUTO_FIT_MAX = 320;
 const AUTO_FIT_PADDING = 18;
 
-function baseName(path: string): string {
-  return path.split("/").pop() ?? path;
-}
-
 /** Chain-link glyph for the hardlink action - far more compact than the word
  * "Hardlink" in the tight actions column. */
 function LinkIcon() {
@@ -84,37 +81,6 @@ function LinkIcon() {
       <path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" />
     </svg>
   );
-}
-
-function dirName(path: string): string {
-  const idx = path.lastIndexOf("/");
-  return idx > 0 ? path.slice(0, idx) : "/";
-}
-
-function formatSize(bytes?: number): string {
-  if (bytes === undefined) return "";
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ["KiB", "MiB", "GiB"];
-  let value = bytes / 1024;
-  let unitIndex = 0;
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-  return `${value.toFixed(1)} ${units[unitIndex]}`;
-}
-
-function formatDate(unixSeconds?: number): string {
-  if (unixSeconds === undefined) return "";
-  return new Date(unixSeconds * 1000).toLocaleDateString();
-}
-
-function formatDuration(seconds?: number): string {
-  if (seconds === undefined) return "";
-  const total = Math.round(seconds);
-  const mins = Math.floor(total / 60);
-  const secs = total % 60;
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
 function extraColumnValue(column: ExtraColumn, entry: FileEntryLike): string {
@@ -548,6 +514,64 @@ export function ResultsTable({ category, groups, extraColumns, selectedPath, onS
     }
   }
 
+  // One group's rows (reference first, then members), rendered with either the
+  // desktop Row or the mobile Card - the props and handlers are identical, so
+  // the two layouts share this fan-out instead of each repeating it verbatim.
+  function renderGroupMembers(group: Group, RowComponent: typeof Row) {
+    const allEntries = group.reference ? [group.reference, ...group.members] : group.members;
+    const best = suggestBest(allEntries);
+    return (
+      <>
+        {group.reference && (
+          <RowComponent
+            key={group.reference.path}
+            entry={group.reference}
+            isReference
+            hasReference
+            bestReason={best?.path === group.reference.path ? best.reason : undefined}
+            extraColumns={extraColumns}
+            widths={widths}
+            selected={selectedPath === group.reference.path}
+            queued={undefined}
+            dataRoot={dataRoot}
+            rowRef={(el) => {
+              if (el) rowRefs.current.set(group.reference!.path, el);
+              else rowRefs.current.delete(group.reference!.path);
+            }}
+            onSelect={() => onSelect(group.reference!)}
+            onOpen={() => onOpen(group.reference!)}
+            onQueueDelete={() => undefined}
+            onQueueHardlink={() => undefined}
+            onUnqueue={() => undefined}
+          />
+        )}
+        {group.members.map((entry) => (
+          <RowComponent
+            key={entry.path}
+            entry={entry}
+            isReference={false}
+            hasReference={!!group.reference}
+            bestReason={best?.path === entry.path ? best.reason : undefined}
+            extraColumns={extraColumns}
+            widths={widths}
+            selected={selectedPath === entry.path}
+            queued={queuedByPath[entry.path]}
+            dataRoot={dataRoot}
+            rowRef={(el) => {
+              if (el) rowRefs.current.set(entry.path, el);
+              else rowRefs.current.delete(entry.path);
+            }}
+            onSelect={() => onSelect(entry)}
+            onOpen={() => onOpen(entry)}
+            onQueueDelete={() => queueDelete(entry)}
+            onQueueHardlink={() => (group.reference ? queueHardlinkToReference(group.reference, entry) : undefined)}
+            onUnqueue={() => unqueue(entry.path)}
+          />
+        ))}
+      </>
+    );
+  }
+
   const bulkBar = (
     <div className="bulk-bar">
       <span className="bulk-bar-label">Bulk actions:</span>
@@ -583,64 +607,14 @@ export function ResultsTable({ category, groups, extraColumns, selectedPath, onS
       <>
         {bulkBar}
         <div className="results-cards">
-        {groups.map((group, groupIndex) => {
-          const allEntries = group.reference ? [group.reference, ...group.members] : group.members;
-          const best = suggestBest(allEntries);
-
-          return (
-            <Fragment key={groupIndex}>
-              <div className="result-group-head">
-                <span>Group {groupIndex + 1}</span>
-              </div>
-              {group.reference && (
-                <Card
-                  key={group.reference.path}
-                  entry={group.reference}
-                  isReference
-                  hasReference
-                  bestReason={best?.path === group.reference.path ? best.reason : undefined}
-                  extraColumns={extraColumns}
-                  widths={widths}
-                  selected={selectedPath === group.reference.path}
-                  queued={undefined}
-                  dataRoot={dataRoot}
-                  rowRef={(el) => {
-                    if (el) rowRefs.current.set(group.reference!.path, el);
-                    else rowRefs.current.delete(group.reference!.path);
-                  }}
-                  onSelect={() => onSelect(group.reference!)}
-                  onOpen={() => onOpen(group.reference!)}
-                  onQueueDelete={() => undefined}
-                  onQueueHardlink={() => undefined}
-                  onUnqueue={() => undefined}
-                />
-              )}
-              {group.members.map((entry) => (
-                <Card
-                  key={entry.path}
-                  entry={entry}
-                  isReference={false}
-                  hasReference={!!group.reference}
-                  bestReason={best?.path === entry.path ? best.reason : undefined}
-                  extraColumns={extraColumns}
-                  widths={widths}
-                  selected={selectedPath === entry.path}
-                  queued={queuedByPath[entry.path]}
-                  dataRoot={dataRoot}
-                  rowRef={(el) => {
-                    if (el) rowRefs.current.set(entry.path, el);
-                    else rowRefs.current.delete(entry.path);
-                  }}
-                  onSelect={() => onSelect(entry)}
-                  onOpen={() => onOpen(entry)}
-                  onQueueDelete={() => queueDelete(entry)}
-                  onQueueHardlink={() => (group.reference ? queueHardlinkToReference(group.reference, entry) : undefined)}
-                  onUnqueue={() => unqueue(entry.path)}
-                />
-              ))}
-            </Fragment>
-          );
-        })}
+        {groups.map((group, groupIndex) => (
+          <Fragment key={groupIndex}>
+            <div className="result-group-head">
+              <span>Group {groupIndex + 1}</span>
+            </div>
+            {renderGroupMembers(group, Card)}
+          </Fragment>
+        ))}
         </div>
       </>
     );
@@ -681,64 +655,14 @@ export function ResultsTable({ category, groups, extraColumns, selectedPath, onS
           </tr>
         </thead>
         <tbody>
-          {groups.map((group, groupIndex) => {
-            const allEntries = group.reference ? [group.reference, ...group.members] : group.members;
-            const best = suggestBest(allEntries);
-
-            return (
-              <Fragment key={groupIndex}>
-                <tr className="group-separator">
-                  <td colSpan={columns.length}>Group {groupIndex + 1}</td>
-                </tr>
-                {group.reference && (
-                  <Row
-                    key={group.reference.path}
-                    entry={group.reference}
-                    isReference
-                    hasReference
-                    bestReason={best?.path === group.reference.path ? best.reason : undefined}
-                    extraColumns={extraColumns}
-                    widths={widths}
-                    selected={selectedPath === group.reference.path}
-                    queued={undefined}
-                    dataRoot={dataRoot}
-                    rowRef={(el) => {
-                      if (el) rowRefs.current.set(group.reference!.path, el);
-                      else rowRefs.current.delete(group.reference!.path);
-                    }}
-                    onSelect={() => onSelect(group.reference!)}
-                    onOpen={() => onOpen(group.reference!)}
-                    onQueueDelete={() => undefined}
-                    onQueueHardlink={() => undefined}
-                    onUnqueue={() => undefined}
-                  />
-                )}
-                {group.members.map((entry) => (
-                  <Row
-                    key={entry.path}
-                    entry={entry}
-                    isReference={false}
-                    hasReference={!!group.reference}
-                    bestReason={best?.path === entry.path ? best.reason : undefined}
-                    extraColumns={extraColumns}
-                    widths={widths}
-                    selected={selectedPath === entry.path}
-                    queued={queuedByPath[entry.path]}
-                    dataRoot={dataRoot}
-                    rowRef={(el) => {
-                      if (el) rowRefs.current.set(entry.path, el);
-                      else rowRefs.current.delete(entry.path);
-                    }}
-                    onSelect={() => onSelect(entry)}
-                    onOpen={() => onOpen(entry)}
-                    onQueueDelete={() => queueDelete(entry)}
-                    onQueueHardlink={() => (group.reference ? queueHardlinkToReference(group.reference, entry) : undefined)}
-                    onUnqueue={() => unqueue(entry.path)}
-                  />
-                ))}
-              </Fragment>
-            );
-          })}
+          {groups.map((group, groupIndex) => (
+            <Fragment key={groupIndex}>
+              <tr className="group-separator">
+                <td colSpan={columns.length}>Group {groupIndex + 1}</td>
+              </tr>
+              {renderGroupMembers(group, Row)}
+            </Fragment>
+          ))}
         </tbody>
       </table>
       </div>

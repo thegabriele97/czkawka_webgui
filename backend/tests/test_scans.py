@@ -83,6 +83,35 @@ def test_scan_rejects_unknown_tool(app_client):
     assert response.status_code == 422
 
 
+def test_scan_survives_a_bridge_that_floods_stderr(app_client_noisy_bridge):
+    """Regression guard for the stderr-pipe deadlock: a bridge that writes
+    megabytes to stderr before producing any stdout must still complete,
+    because the backend drains stderr on its own thread."""
+    client, data_root = app_client_noisy_bridge
+    folder = data_root / "library"
+    folder.mkdir()
+
+    scan_id = client.post("/api/scans", json={"tool": "duplicates", "directories": [str(folder)]}).json()["id"]
+
+    body = _wait_for_scan(client, scan_id, timeout=10.0)
+    assert body["status"] == "done", body.get("error_message")
+
+
+def test_scan_persists_last_distinct_progress(app_client_progress_bridge):
+    """The on_progress throttle skips unchanged lines; the last *distinct*
+    label/percentage still has to land in the DB."""
+    client, data_root = app_client_progress_bridge
+    folder = data_root / "library"
+    folder.mkdir()
+
+    scan_id = client.post("/api/scans", json={"tool": "duplicates", "directories": [str(folder)]}).json()["id"]
+
+    body = _wait_for_scan(client, scan_id)
+    assert body["status"] == "done", body.get("error_message")
+    assert body["progress_label"] == "Hashing"
+    assert body["progress_all"] == 75
+
+
 def test_scan_reports_czkawka_messages(app_client_real_bridge):
     """The warnings/errors czkawka_core collected (skipped files and why)
     are persisted alongside the result, so the UI can explain why a file

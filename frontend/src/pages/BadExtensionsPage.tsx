@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { useDataRoot } from "../api/DataRootContext";
 import { displayPath } from "../api/displayPath";
-import type { FolderEntry, ScanOut } from "../api/types";
+import { baseName } from "../api/format";
+import type { FolderEntry } from "../api/types";
 import { ProgressBar } from "../components/ProgressBar";
 import { ScanWarnings } from "../components/ScanWarnings";
+import { useScanLifecycle } from "../hooks/useScanLifecycle";
 
 interface BadExtensionEntry {
   path: string;
@@ -22,15 +24,11 @@ interface BadExtensionsPageProps {
 /** The path this file would get with the extension czkawka suggests -
  * same folder, same base name, only the extension swapped (a file with no
  * extension at all just gains one). */
-function renamedPath(path: string, properExtension: string): string {
+export function renamedPath(path: string, properExtension: string): string {
   const lastSlash = path.lastIndexOf("/");
   const lastDot = path.lastIndexOf(".");
   const base = lastDot > lastSlash ? path.slice(0, lastDot) : path;
   return `${base}.${properExtension}`;
-}
-
-function baseName(path: string): string {
-  return path.split("/").pop() ?? path;
 }
 
 /** A flat list rather than a compare-and-decide workflow (that's
@@ -40,28 +38,13 @@ function baseName(path: string): string {
  * selected folder regardless of its reference tick: that concept doesn't
  * apply to this tool. */
 export function BadExtensionsPage({ folders, onOperationsQueued }: BadExtensionsPageProps) {
-  const [scan, setScan] = useState<ScanOut | null>(null);
-  const [starting, setStarting] = useState(false);
-  const [stopping, setStopping] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { scan, starting, stopping, error, setError, start, stop } = useScanLifecycle("bad_extensions");
   // Seeded from the backend, not just from local clicks, so a rename queued
   // before a reload is still recognized as queued.
   const [queuedByPath, setQueuedByPath] = useState<Record<string, number>>({});
   const dataRoot = useDataRoot();
 
   const directories = folders.map((f) => f.path);
-
-  // Reattach to whatever scan was last run - the backend keeps it going in
-  // the background regardless of whether anyone's watching, so a page
-  // reload shouldn't make it look like nothing is happening.
-  useEffect(() => {
-    api
-      .getLatestScan("bad_extensions")
-      .then((latest) => {
-        if (latest) setScan(latest);
-      })
-      .catch(() => undefined);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,37 +60,8 @@ export function BadExtensionsPage({ folders, onOperationsQueued }: BadExtensions
     };
   }, []);
 
-  useEffect(() => {
-    if (!scan || scan.status !== "running") return;
-    const interval = setInterval(() => {
-      api.getScan(scan.id).then(setScan).catch(() => undefined);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [scan?.id, scan?.status]);
-
   async function startScan() {
-    setError(null);
-    setStarting(true);
-    try {
-      const created = await api.createScan({ tool: "bad_extensions", directories });
-      setScan(created);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setStarting(false);
-    }
-  }
-
-  async function stopScan() {
-    if (!scan) return;
-    setStopping(true);
-    try {
-      setScan(await api.stopScan(scan.id));
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setStopping(false);
-    }
+    await start({ tool: "bad_extensions", directories });
   }
 
   async function queueRename(entry: BadExtensionEntry, target: string) {
@@ -154,7 +108,7 @@ export function BadExtensionsPage({ folders, onOperationsQueued }: BadExtensions
       {scan?.status === "running" && (
         <div className="scan-progress">
           <ProgressBar label={scan.progress_label} percent={scan.progress_all} />
-          <button onClick={stopScan} disabled={stopping}>
+          <button onClick={stop} disabled={stopping}>
             Stop scan
           </button>
         </div>

@@ -1,8 +1,5 @@
+import { formatSize, sizeOf } from "../api/format";
 import type { Group } from "../api/types";
-
-function sizeOf(entry: { size?: number }): number {
-  return typeof entry.size === "number" ? entry.size : 0;
-}
 
 /** Rough estimate of how much disk a group could free: with a reference
  * folder every member is removable (the reference is the kept copy); with
@@ -13,18 +10,6 @@ function groupReclaim(group: Group): number {
   if (sizes.length === 0) return 0;
   const total = sizes.reduce((a, b) => a + b, 0);
   return total - Math.max(...sizes);
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ["KiB", "MiB", "GiB", "TiB"];
-  let value = bytes / 1024;
-  let i = 0;
-  while (value >= 1024 && i < units.length - 1) {
-    value /= 1024;
-    i += 1;
-  }
-  return `${value.toFixed(1)} ${units[i]}`;
 }
 
 /** Surfaces the point of the whole scan before the detail: how much space

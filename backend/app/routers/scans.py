@@ -106,7 +106,17 @@ def create_scan(payload: ScanCreate, db: Session = Depends(get_db)):
 def _run_scan_in_background(scan_id: int, tool: str, directories: list[str], reference_directories: list[str], options: dict):
     db = SessionLocal()
     try:
+        # czkawka_core fires the progress callback many times a second; only
+        # the label and percentage are ever persisted, so skip the DB write
+        # (and its fsync + write lock contending with status polls) whenever
+        # neither actually changed since the last line.
+        last_progress: dict = {"label": None, "all": None}
+
         def on_progress(label: str, all_progress: int):
+            if label == last_progress["label"] and all_progress == last_progress["all"]:
+                return
+            last_progress["label"] = label
+            last_progress["all"] = all_progress
             scan = db.get(Scan, scan_id)
             scan.progress_label = label
             scan.progress_all = all_progress

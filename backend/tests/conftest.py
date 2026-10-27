@@ -83,3 +83,51 @@ def app_client_slow_bridge(tmp_path, monkeypatch):
     client, data_root = _make_client(tmp_path, monkeypatch, str(script))
     with client:
         yield client, data_root
+
+
+@pytest.fixture()
+def app_client_noisy_bridge(tmp_path, monkeypatch):
+    """BRIDGE_BIN floods stderr with far more than a pipe buffer's worth of
+    output *before* emitting any stdout. If the backend doesn't drain stderr
+    concurrently the bridge blocks writing to it, never gets to print its
+    result on stdout, and the scan hangs - this fixture reproduces exactly
+    that deadlock shape so the drain is actually exercised.
+    """
+    script = tmp_path / "noisy-bridge.py"
+    script.write_text(
+        "#!/usr/bin/env python3\n"
+        "import sys\n"
+        # ~2 MB on stderr, dwarfing the ~64KB OS pipe buffer, all before stdout.
+        "sys.stderr.write(('noise ' * 16 + '\\n') * 20000)\n"
+        "sys.stderr.flush()\n"
+        "print('{\"type\": \"messages\", \"messages\": [], \"warnings\": [], \"errors\": []}', flush=True)\n"
+        "print('{\"type\": \"result\", \"data\": {}}', flush=True)\n"
+    )
+    script.chmod(0o755)
+    client, data_root = _make_client(tmp_path, monkeypatch, str(script))
+    with client:
+        yield client, data_root
+
+
+@pytest.fixture()
+def app_client_progress_bridge(tmp_path, monkeypatch):
+    """BRIDGE_BIN emits a few progress lines - including a verbatim repeat of
+    one - then a result. Lets a test confirm the backend persists the last
+    distinct progress value through the throttle that skips unchanged lines.
+    """
+    script = tmp_path / "progress-bridge.py"
+    script.write_text(
+        "#!/usr/bin/env python3\n"
+        "import sys\n"
+        "def line(label, pct):\n"
+        "    print('{\"type\": \"progress\", \"label\": \"%s\", \"all_progress\": %d, \"current_progress\": null, \"current_progress_size\": null}' % (label, pct), flush=True)\n"
+        "line('Scanning', 10)\n"
+        "line('Scanning', 10)\n"  # duplicate -> throttled, no second DB write
+        "line('Hashing', 75)\n"
+        "print('{\"type\": \"messages\", \"messages\": [], \"warnings\": [], \"errors\": []}', flush=True)\n"
+        "print('{\"type\": \"result\", \"data\": {}}', flush=True)\n"
+    )
+    script.chmod(0o755)
+    client, data_root = _make_client(tmp_path, monkeypatch, str(script))
+    with client:
+        yield client, data_root

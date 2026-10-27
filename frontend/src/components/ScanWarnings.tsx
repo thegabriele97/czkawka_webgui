@@ -1,4 +1,5 @@
 import { useDataRoot } from "../api/DataRootContext";
+import { stripBidiIsolates } from "../api/format";
 import type { ScanMessages } from "../api/types";
 
 interface ScanWarningsProps {
@@ -9,7 +10,7 @@ interface ScanWarningsProps {
  * which render as stray boxes in a browser, and reports absolute container
  * paths - neither belongs in front of the user. */
 function clean(message: string, dataRoot: string): string {
-  const withoutIsolates = message.replace(/[⁦-⁩]/g, "");
+  const withoutIsolates = stripBidiIsolates(message);
   return dataRoot ? withoutIsolates.split(`${dataRoot}/`).join("") : withoutIsolates;
 }
 
